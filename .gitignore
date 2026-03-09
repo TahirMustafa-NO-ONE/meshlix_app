@@ -1,0 +1,173 @@
+# Flutter/Dart
+**/android/**/gradle-wrapper.jar
+**/android/.gradle
+**/android/captures/
+**/android/gradlew
+**/android/gradlew.bat
+**/android/local.properties
+**/android/**/GeneratedPluginRegistrant.java
+**/android/app/src/main/gen/
+**/android/app/src/debug/gen/
+**/ios/.generated/
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/app.flx
+**/ios/Flutter/app.zip
+**/ios/Flutter/flutter_assets/
+**/ios/ServiceDefinitions.json
+**/ios/Runner/GeneratedPluginRegistrant.*
+**/macos/Flutter/GeneratedPluginRegistrant.swift
+**/macos/Flutter/Flutter-Debug.xcconfig
+**/macos/Flutter/Flutter-Release.xcconfig
+**/windows/flutter/GeneratedPluginRegistrant.*
+**/windows/flutter/generated_plugin_registrant.*
+**/linux/flutter/GeneratedPluginRegistrant.*
+**/linux/flutter/generated_plugin_registrant.*
+**/web/icons/Icon-*
+**/web/icons/Icon-maskable-*
+**/android/app/src/main/res/mipmap-*/ic_launcher.png
+**/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-*.png
+**/macos/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-*.png
+**/windows/runner/resources/app_icon.ico
+**/linux/runner/resources/app_icon.png
+**/pub-cache/
+**/build/
+**/packages/
+**/ios/Pods/
+**/ios/Podfile.lock
+**/macos/Pods/
+**/macos/Podfile.lock
+**/windows/flutter/ephemeral/
+**/linux/flutter/ephemeral/
+**/ios/Flutter/.last_build_id
+**/macos/Flutter/.last_build_id
+**/windows/flutter/.last_build_id
+**/linux/flutter/.last_build_id
+**/ios/Flutter/flutter_export_environment.sh
+**/macos/Flutter/flutter_export_environment.sh
+**/windows/flutter/flutter_export_environment.sh
+**/linux/flutter/flutter_export_environment.sh
+
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode/settings.json file contains the Flutter SDK path, which is local to the user
+.vscode/settings.json
+
+# Visual Studio Code related
+.vscode/
+
+# Flutter repo-specific
+**/Flutter/ephemeral/
+**/Flutter/generated.xcconfig
+**/Flutter/generated/
+**/Flutter/app.flx
+**/Flutter/app.zip
+**/Flutter/flutter_assets/
+**/Flutter/.last_build_id
+**/Flutter/flutter_export_environment.sh
+
+# Android related
+**/android/**/gradle-wrapper.jar
+**/android/.gradle
+**/android/captures/
+**/android/gradlew
+**/android/gradlew.bat
+**/android/local.properties
+**/android/**/GeneratedPluginRegistrant.java
+**/android/app/src/main/gen/
+**/android/app/src/debug/gen/
+
+# iOS related
+**/ios/.generated/
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/app.flx
+**/ios/Flutter/app.zip
+**/ios/Flutter/flutter_assets/
+**/ios/ServiceDefinitions.json
+**/ios/Runner/GeneratedPluginRegistrant.*
+
+# macOS related
+**/macos/Flutter/GeneratedPluginRegistrant.swift
+**/macos/Flutter/Flutter-Debug.xcconfig
+**/macos/Flutter/Flutter-Release.xcconfig
+
+# Windows related
+**/windows/flutter/GeneratedPluginRegistrant.*
+**/windows/flutter/generated_plugin_registrant.*
+
+# Linux related
+**/linux/flutter/GeneratedPluginRegistrant.*
+**/linux/flutter/generated_plugin_registrant.*
+
+# Web related
+**/web/icons/Icon-*
+**/web/icons/Icon-maskable-*
+**/android/app/src/main/res/mipmap-*/ic_launcher.png
+**/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-*.png
+**/macos/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-*.png
+**/windows/runner/resources/app_icon.ico
+**/linux/runner/resources/app_icon.png
+
+# Pub related
+**/pub-cache/
+
+# Build related
+**/build/
+
+# Packages
+**/packages/
+
+# CocoaPods
+**/ios/Pods/
+**/ios/Podfile.lock
+**/macos/Pods/
+**/macos/Podfile.lock
+
+# Flutter
+**/flutter/ephemeral/
+
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+
+# IntelliJ
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VS Code
+.vscode/
+
+# Local files
+.env
+.env.local
+
+# Test coverage
+coverage/
+
+# Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
