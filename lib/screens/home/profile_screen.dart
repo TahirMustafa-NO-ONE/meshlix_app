@@ -2,11 +2,48 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/auth/auth_service.dart';
+import '../../services/session/session_manager.dart';
 import '../../theme/app_colors.dart';
 import '../auth/auth_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  bool _isPrivateKeyVisible = false;
+  String? _privateKey;
+  bool _isLoadingPrivateKey = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPrivateKey();
+  }
+
+  Future<void> _loadPrivateKey() async {
+    setState(() => _isLoadingPrivateKey = true);
+    try {
+      final privateKey = await SessionManager.instance.getAuthToken();
+      if (mounted) {
+        setState(() {
+          _privateKey = privateKey;
+          _isLoadingPrivateKey = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingPrivateKey = false);
+      }
+    }
+  }
+
+  void _togglePrivateKeyVisibility() {
+    setState(() => _isPrivateKeyVisible = !_isPrivateKeyVisible);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -260,6 +297,207 @@ class ProfileScreen extends StatelessWidget {
                                     ),
                                   );
                                 },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // ── Private Key Card ───────────────────────────────────
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.error.withValues(alpha: 0.3),
+                          width: 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.error.withValues(alpha: 0.1),
+                            blurRadius: 12,
+                            spreadRadius: 0,
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.error.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  Icons.key_outlined,
+                                  color: AppColors.error,
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                'Your Private Key',
+                                style: GoogleFonts.rajdhani(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          // Warning message
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.error.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: AppColors.error.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.warning_amber_rounded,
+                                  color: AppColors.error,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Never share your private key with anyone!',
+                                    style: GoogleFonts.rajdhani(
+                                      color: AppColors.error,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _isLoadingPrivateKey
+                                    ? const Center(
+                                        child: SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: AppColors.textHint,
+                                          ),
+                                        ),
+                                      )
+                                    : Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            _isPrivateKeyVisible && _privateKey != null
+                                                ? _privateKey!
+                                                : '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••',
+                                            style: GoogleFonts.robotoMono(
+                                              color: _isPrivateKeyVisible
+                                                  ? AppColors.error
+                                                  : AppColors.textHint,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            maxLines: 3,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 12),
+                                          Row(
+                                            children: [
+                                              // Toggle visibility button
+                                              TextButton.icon(
+                                                onPressed: _togglePrivateKeyVisibility,
+                                                icon: Icon(
+                                                  _isPrivateKeyVisible
+                                                      ? Icons.visibility_off
+                                                      : Icons.visibility,
+                                                  size: 16,
+                                                  color: AppColors.textSecondary,
+                                                ),
+                                                label: Text(
+                                                  _isPrivateKeyVisible ? 'Hide' : 'Show',
+                                                  style: GoogleFonts.rajdhani(
+                                                    color: AppColors.textSecondary,
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                                style: TextButton.styleFrom(
+                                                  padding: const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 8,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              // Copy button
+                                              if (_isPrivateKeyVisible && _privateKey != null)
+                                                TextButton.icon(
+                                                  onPressed: () {
+                                                    Clipboard.setData(
+                                                      ClipboardData(text: _privateKey!),
+                                                    );
+                                                    ScaffoldMessenger.of(context)
+                                                        .showSnackBar(
+                                                      SnackBar(
+                                                        content: Text(
+                                                          'Private key copied to clipboard',
+                                                          style: GoogleFonts.rajdhani(
+                                                            color: AppColors.textPrimary,
+                                                          ),
+                                                        ),
+                                                        backgroundColor:
+                                                            const Color(0xFF3D1100),
+                                                        behavior: SnackBarBehavior.floating,
+                                                        shape: RoundedRectangleBorder(
+                                                          borderRadius:
+                                                              BorderRadius.circular(8),
+                                                        ),
+                                                        margin: const EdgeInsets.all(16),
+                                                        duration:
+                                                            const Duration(seconds: 2),
+                                                      ),
+                                                    );
+                                                  },
+                                                  icon: const Icon(
+                                                    Icons.copy_rounded,
+                                                    size: 16,
+                                                    color: AppColors.error,
+                                                  ),
+                                                  label: Text(
+                                                    'Copy',
+                                                    style: GoogleFonts.rajdhani(
+                                                      color: AppColors.error,
+                                                      fontSize: 13,
+                                                    ),
+                                                  ),
+                                                  style: TextButton.styleFrom(
+                                                    padding: const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 8,
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
                               ),
                             ],
                           ),

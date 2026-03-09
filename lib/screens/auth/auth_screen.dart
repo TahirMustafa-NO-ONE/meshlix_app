@@ -279,6 +279,7 @@ class _AuthScreenState extends State<AuthScreen> with WidgetsBindingObserver {
                       label: 'Continue with Google',
                       isLoading: _isGoogleLoading,
                       onPressed: _anyLoading ? null : _handleGoogleAuth,
+                      highlightBorder: true,
                     ),
                     const SizedBox(height: 12),
 
