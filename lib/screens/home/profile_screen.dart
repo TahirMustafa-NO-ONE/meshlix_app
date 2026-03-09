@@ -44,38 +44,26 @@ class ProfileScreen extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            IconButton(
-                              icon: const Icon(
-                                Icons.arrow_back,
+                            Text(
+                              'MESHLIX',
+                              style: GoogleFonts.orbitron(
                                 color: AppColors.primaryAccent,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 3.0,
                               ),
-                              onPressed: () => Navigator.of(context).pop(),
                             ),
-                            const SizedBox(width: 8),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'MESHLIX',
-                                  style: GoogleFonts.orbitron(
-                                    color: AppColors.primaryAccent,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 3.0,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Profile',
-                                  style: GoogleFonts.rajdhani(
-                                    color: AppColors.textSecondary,
-                                    fontSize: 12,
-                                    letterSpacing: 1.0,
-                                  ),
-                                ),
-                              ],
+                            const SizedBox(height: 4),
+                            Text(
+                              'Web3 Identity • Profile',
+                              style: GoogleFonts.rajdhani(
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
+                                letterSpacing: 1.0,
+                              ),
                             ),
                           ],
                         ),

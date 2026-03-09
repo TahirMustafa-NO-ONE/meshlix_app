@@ -5,7 +5,6 @@ import '../../services/auth/auth_user.dart';
 import '../../services/storage/user_storage.dart';
 import '../../theme/app_colors.dart';
 import '../auth/auth_screen.dart';
-import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,7 +16,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   List<AuthUser> _allUsers = [];
   bool _isLoading = true;
-  int _selectedIndex = 0;
 
   @override
   void initState() {
@@ -51,17 +49,6 @@ class _HomeScreenState extends State<HomeScreen> {
         MaterialPageRoute(builder: (_) => const AuthScreen()),
         (route) => false, // Remove all previous routes
       );
-    }
-  }
-
-  void _onBottomNavTap(int index) {
-    if (index == 1) {
-      // Navigate to profile
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const ProfileScreen()));
-    } else {
-      setState(() => _selectedIndex = index);
     }
   }
 
@@ -230,20 +217,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             ],
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.arrow_forward_ios,
-                            color: AppColors.primaryAccent,
-                            size: 18,
-                          ),
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const ProfileScreen(),
-                              ),
-                            );
-                          },
-                        ),
                       ],
                     ),
                   ),
@@ -344,42 +317,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ],
-      ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          border: Border(
-            top: BorderSide(
-              color: AppColors.primaryAccent.withValues(alpha: 0.3),
-              width: 1,
-            ),
-          ),
-        ),
-        child: BottomNavigationBar(
-          backgroundColor: AppColors.surface,
-          selectedItemColor: AppColors.primaryAccent,
-          unselectedItemColor: AppColors.textSecondary,
-          currentIndex: _selectedIndex,
-          onTap: _onBottomNavTap,
-          type: BottomNavigationBarType.fixed,
-          selectedLabelStyle: GoogleFonts.rajdhani(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
-          unselectedLabelStyle: GoogleFonts.rajdhani(fontSize: 12),
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home),
-              label: 'Home',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Profile',
-            ),
-          ],
-        ),
       ),
     );
   }

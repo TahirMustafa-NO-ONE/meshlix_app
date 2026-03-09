@@ -10,7 +10,7 @@ import '../../services/auth/auth_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/auth/custom_text_field.dart';
 import '../../widgets/auth/primary_button.dart';
-import '../home/home_screen.dart';
+import '../home/main_navigation_screen.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -175,9 +175,9 @@ class _AuthScreenState extends State<AuthScreen> with WidgetsBindingObserver {
   }
 
   void _navigateToHome() {
-    Navigator.of(
-      context,
-    ).pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+    );
   }
 
   void _showSnack(String message, {bool success = false}) {

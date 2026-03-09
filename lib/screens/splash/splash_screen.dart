@@ -4,7 +4,7 @@ import '../../services/auth/auth_service.dart';
 import '../../services/session/session_manager.dart';
 import '../../theme/app_colors.dart';
 import '../auth/auth_screen.dart';
-import '../home/home_screen.dart';
+import '../home/main_navigation_screen.dart';
 
 /// Splash screen that checks for existing session and routes accordingly
 ///
@@ -69,9 +69,9 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   void _navigateToHome() {
-    Navigator.of(
-      context,
-    ).pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+    );
   }
 
   void _navigateToAuth() {
