@@ -89,7 +89,7 @@ class _AuthScreenState extends State<AuthScreen> with WidgetsBindingObserver {
 
     setState(() => _isWalletLoading = true);
     try {
-      await AuthService.instance.signInWithWallet(walletId);
+      await AuthService.instance.signInWithWallet(context);
       if (mounted) _navigateToHome();
     } on UnimplementedError catch (e) {
       if (mounted) _showSnack(e.message ?? 'Wallet connection not set up yet.');

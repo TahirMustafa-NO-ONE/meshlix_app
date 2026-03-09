@@ -6,6 +6,7 @@ import 'package:web3auth_flutter/input.dart';
 import 'package:web3auth_flutter/output.dart';
 import 'package:web3dart/web3dart.dart';
 import 'auth_user.dart';
+import '../wallet/wallet_connect_service.dart';
 
 class AuthService {
   AuthService._();
@@ -121,25 +122,55 @@ class AuthService {
 
   /// Connect an external Web3 wallet (MetaMask, Trust Wallet, Rainbow, etc.)
   ///
-  /// Web3Auth v6 does not include native external-wallet support directly.
-  /// The recommended production integration path is:
-  ///
-  ///   1. Add `walletconnect_flutter_v2` to pubspec.yaml.
-  ///   2. Obtain a Project ID at https://cloud.walletconnect.com.
-  ///   3. Create a WalletConnectFlutterV2 instance, generate a pairing URI,
-  ///      and deep-link / QR the URI into the chosen wallet app.
-  ///   4. On `SessionApproveEvent`, obtain the connected address + sign a
-  ///      challenge message to prove ownership.
-  ///   5. Pass the signed JWT to Web3Auth Custom Auth to mint a Web3Auth
-  ///      session for that address.
-  ///
-  /// This stub throws [UnimplementedError] until the above steps are wired up.
-  /// The UI (WalletConnectSheet) is fully built and ready to hook in.
-  Future<AuthUser> signInWithWallet(String walletId) async {
-    throw UnimplementedError(
-      'External wallet sign-in is not yet wired up. '
-      'See the TODO inside AuthService.signInWithWallet().',
-    );
+  /// Uses Reown AppKit (WalletConnect v2) to establish connection with the wallet app.
+  /// Returns an [AuthUser] with the connected wallet address.
+  Future<AuthUser> signInWithWallet(dynamic context) async {
+    try {
+      // Ensure WalletConnect is initialized
+      if (!WalletConnectService.instance.isConnected) {
+        // Connect to the wallet
+        final address = await WalletConnectService.instance.connectWallet(
+          context,
+        );
+
+        // Create a challenge message for the user to sign
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final challengeMessage =
+            'Sign this message to authenticate with Meshlix.\n\n'
+            'Timestamp: $timestamp\n'
+            'Wallet: $address';
+
+        // Request signature to prove ownership
+        await WalletConnectService.instance.signMessage(challengeMessage);
+
+        // Create and return an AuthUser with the connected wallet address
+        final username =
+            'user_${address.substring(2, 6)}${address.substring(address.length - 4)}';
+        _currentUser = AuthUser(
+          publicAddress: address,
+          username: username,
+          name: 'External Wallet',
+          provider: AuthProvider.externalWallet,
+        );
+
+        return _currentUser!;
+      } else {
+        // Already connected, use existing address
+        final address = WalletConnectService.instance.connectedAddress!;
+        final username =
+            'user_${address.substring(2, 6)}${address.substring(address.length - 4)}';
+        _currentUser = AuthUser(
+          publicAddress: address,
+          username: username,
+          name: 'External Wallet',
+          provider: AuthProvider.externalWallet,
+        );
+        return _currentUser!;
+      }
+    } on Object catch (e) {
+      debugPrint('[AuthService] External wallet sign-in failed: $e');
+      rethrow;
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────

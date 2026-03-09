@@ -1,6 +1,6 @@
 import 'package:web3auth_flutter/output.dart';
 
-enum AuthProvider { google, emailOTP, wallet, unknown }
+enum AuthProvider { google, emailOTP, wallet, externalWallet, unknown }
 
 /// Normalized user model populated after any successful Web3Auth sign-in.
 class AuthUser {
@@ -31,7 +31,8 @@ class AuthUser {
     required AuthProvider provider,
   }) {
     // Generate random username from address (first 4 chars + last 4 chars)
-    final username = 'user_${address.substring(2, 6)}${address.substring(address.length - 4)}';
+    final username =
+        'user_${address.substring(2, 6)}${address.substring(address.length - 4)}';
 
     return AuthUser(
       email: userInfo?.email,
