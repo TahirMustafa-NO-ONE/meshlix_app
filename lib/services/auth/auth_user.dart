@@ -8,9 +8,11 @@ class AuthUser {
   final String? name;
   final String? profileImage;
 
-  /// secp256k1 private key — use to derive the user's EVM address.
-  /// Store this only in secure storage; never log it.
-  final String? privKey;
+  /// Ethereum public address (0x...)
+  final String publicAddress;
+
+  /// Random username for display (generated from address)
+  final String username;
 
   final AuthProvider provider;
 
@@ -18,22 +20,35 @@ class AuthUser {
     this.email,
     this.name,
     this.profileImage,
-    this.privKey,
+    required this.publicAddress,
+    required this.username,
     required this.provider,
   });
 
-  factory AuthUser.fromTorusInfo(TorusUserInfo info, AuthProvider provider) {
+  factory AuthUser.fromWeb3AuthResponse({
+    required String address,
+    TorusUserInfo? userInfo,
+    required AuthProvider provider,
+  }) {
+    // Generate random username from address (first 4 chars + last 4 chars)
+    final username = 'user_${address.substring(2, 6)}${address.substring(address.length - 4)}';
+
     return AuthUser(
-      email: info.email,
-      name: info.name,
-      profileImage: info.profileImage,
+      email: userInfo?.email,
+      name: userInfo?.name,
+      profileImage: userInfo?.profileImage,
+      publicAddress: address,
+      username: username,
       provider: provider,
     );
   }
 
-  String get displayName => name ?? email ?? 'Meshlix User';
+  String get displayName => name ?? username;
+
+  String get shortAddress =>
+      '${publicAddress.substring(0, 6)}...${publicAddress.substring(publicAddress.length - 4)}';
 
   @override
   String toString() =>
-      'AuthUser(provider: $provider, email: $email, name: $name)';
+      'AuthUser(provider: $provider, address: $publicAddress, email: $email, name: $name)';
 }

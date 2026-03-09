@@ -4,6 +4,7 @@ import 'package:web3auth_flutter/web3auth_flutter.dart';
 import 'package:web3auth_flutter/enums.dart';
 import 'package:web3auth_flutter/input.dart';
 import 'package:web3auth_flutter/output.dart';
+import 'package:web3dart/web3dart.dart';
 import 'auth_user.dart';
 
 class AuthService {
@@ -71,8 +72,10 @@ class AuthService {
     // ── Phase 2: Session restoration (optional) ────────────────────────────
     try {
       await Web3AuthFlutter.initialize();
-      final info = await Web3AuthFlutter.getUserInfo();
-      _currentUser = AuthUser.fromTorusInfo(info, AuthProvider.unknown);
+      final response = await Web3AuthFlutter.getWeb3AuthResponse();
+      if (response.privKey != null && response.privKey!.isNotEmpty) {
+        _currentUser = _toUser(response, AuthProvider.unknown);
+      }
     } on Object catch (_) {
       // No prior session — user must sign in.
     }
@@ -152,12 +155,28 @@ class AuthService {
   // HELPERS
   // ─────────────────────────────────────────────────────────────────────────
 
+  /// Derives Ethereum public address from secp256k1 private key
+  String _deriveAddress(String privateKeyHex) {
+    // Remove '0x' prefix if present
+    final cleaned = privateKeyHex.startsWith('0x')
+        ? privateKeyHex.substring(2)
+        : privateKeyHex;
+
+    final credentials = EthPrivateKey.fromHex(cleaned);
+    final address = credentials.address;
+    return address.hexEip55;
+  }
+
   AuthUser _toUser(Web3AuthResponse r, AuthProvider provider) {
-    return AuthUser(
-      email: r.userInfo?.email,
-      name: r.userInfo?.name,
-      profileImage: r.userInfo?.profileImage,
-      privKey: r.privKey,
+    if (r.privKey == null || r.privKey!.isEmpty) {
+      throw Exception('No private key received from Web3Auth');
+    }
+
+    final publicAddress = _deriveAddress(r.privKey!);
+
+    return AuthUser.fromWeb3AuthResponse(
+      address: publicAddress,
+      userInfo: r.userInfo,
       provider: provider,
     );
   }

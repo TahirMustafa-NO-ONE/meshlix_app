@@ -3,7 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'services/auth/auth_service.dart';
 import 'theme/app_theme.dart';
-import 'screens/auth/login_screen.dart';
+import 'screens/auth/auth_screen.dart';
+import 'screens/home/home_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,9 +38,9 @@ class MeshlixApp extends StatelessWidget {
       title: 'Meshlix',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
-      // If a session was restored, you can swap LoginScreen for your home screen here:
-      //   home: AuthService.instance.isAuthenticated ? const HomeScreen() : const LoginScreen(),
-      home: const LoginScreen(),
+      home: AuthService.instance.isAuthenticated
+          ? const HomeScreen()
+          : const AuthScreen(),
     );
   }
 }

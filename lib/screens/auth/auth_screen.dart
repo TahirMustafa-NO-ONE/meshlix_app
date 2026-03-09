@@ -10,17 +10,16 @@ import '../../theme/app_colors.dart';
 import '../../widgets/auth/custom_text_field.dart';
 import '../../widgets/auth/primary_button.dart';
 import '../../widgets/auth/wallet_connect_sheet.dart';
-import 'signup_screen.dart';
+import '../home/home_screen.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class AuthScreen extends StatefulWidget {
+  const AuthScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen>
-    with WidgetsBindingObserver {
+class _AuthScreenState extends State<AuthScreen> with WidgetsBindingObserver {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
 
@@ -55,28 +54,26 @@ class _LoginScreenState extends State<LoginScreen>
 
   // ─── Auth handlers ────────────────────────────────────────────────────────
 
-  Future<void> _handleEmailLogin() async {
+  Future<void> _handleEmailAuth() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _isEmailLoading = true);
     try {
       await AuthService.instance.signInWithEmail(_emailController.text.trim());
-      // TODO: Navigate to home screen after successful login
-      if (mounted) _showSnack('Signed in successfully!', success: true);
+      if (mounted) _navigateToHome();
     } on UserCancelledException {
       // User closed the browser tab — no error shown
     } catch (e) {
-      if (mounted) _showSnack('Email sign-in failed: $e');
+      if (mounted) _showSnack('Authentication failed: $e');
     } finally {
       if (mounted) setState(() => _isEmailLoading = false);
     }
   }
 
-  Future<void> _handleGoogleLogin() async {
+  Future<void> _handleGoogleAuth() async {
     setState(() => _isGoogleLoading = true);
     try {
       await AuthService.instance.signInWithGoogle();
-      // TODO: Navigate to home screen after successful login
-      if (mounted) _showSnack('Signed in with Google!', success: true);
+      if (mounted) _navigateToHome();
     } on UserCancelledException {
       // User closed the auth tab
     } catch (e) {
@@ -93,8 +90,7 @@ class _LoginScreenState extends State<LoginScreen>
     setState(() => _isWalletLoading = true);
     try {
       await AuthService.instance.signInWithWallet(walletId);
-      // TODO: Navigate to home screen after successful login
-      if (mounted) _showSnack('Wallet connected!', success: true);
+      if (mounted) _navigateToHome();
     } on UnimplementedError catch (e) {
       if (mounted) _showSnack(e.message ?? 'Wallet connection not set up yet.');
     } catch (e) {
@@ -104,6 +100,12 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
+  void _navigateToHome() {
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
+  }
+
   void _showSnack(String message, {bool success = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -111,11 +113,11 @@ class _LoginScreenState extends State<LoginScreen>
           message,
           style: GoogleFonts.rajdhani(color: AppColors.textPrimary),
         ),
-        backgroundColor:
-            success ? const Color(0xFF1E3A00) : AppColors.surfaceVariant,
+        backgroundColor: success
+            ? const Color(0xFF1E3A00)
+            : AppColors.surfaceVariant,
         behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         margin: const EdgeInsets.all(16),
       ),
     );
@@ -187,7 +189,7 @@ class _LoginScreenState extends State<LoginScreen>
                     // ── Continue button ─────────────────────────────────
                     PrimaryButton(
                       text: 'CONTINUE WITH EMAIL',
-                      onPressed: _anyLoading ? null : _handleEmailLogin,
+                      onPressed: _anyLoading ? null : _handleEmailAuth,
                       isLoading: _isEmailLoading,
                     ),
                     const SizedBox(height: 28),
@@ -202,7 +204,7 @@ class _LoginScreenState extends State<LoginScreen>
                       iconColor: const Color(0xFFEA4335),
                       label: 'Continue with Google',
                       isLoading: _isGoogleLoading,
-                      onPressed: _anyLoading ? null : _handleGoogleLogin,
+                      onPressed: _anyLoading ? null : _handleGoogleAuth,
                     ),
                     const SizedBox(height: 12),
 
@@ -216,10 +218,6 @@ class _LoginScreenState extends State<LoginScreen>
                       onPressed: _anyLoading ? null : _handleWalletConnect,
                       highlightBorder: true,
                     ),
-                    const SizedBox(height: 36),
-
-                    // ── Sign up link ────────────────────────────────────
-                    _buildSignUpLink(context),
                     const SizedBox(height: 32),
                   ],
                 ),
@@ -278,33 +276,6 @@ class _LoginScreenState extends State<LoginScreen>
       ],
     );
   }
-
-  Widget _buildSignUpLink(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          "Don't have an account? ",
-          style: GoogleFonts.rajdhani(
-              color: AppColors.textSecondary, fontSize: 14),
-        ),
-        GestureDetector(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const SignupScreen()),
-          ),
-          child: Text(
-            'Sign Up',
-            style: GoogleFonts.rajdhani(
-              color: AppColors.primaryAccent,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 // ─── Auth Provider Button ────────────────────────────────────────────────────
@@ -343,8 +314,7 @@ class _AuthProviderButton extends StatelessWidget {
                 : AppColors.border,
             width: highlightBorder ? 1.5 : 1.0,
           ),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           padding: EdgeInsets.zero,
         ),
         child: isLoading
@@ -408,8 +378,7 @@ class _GeometricPainter extends CustomPainter {
 
     for (int row = -1; row < rowCount; row++) {
       for (int col = -1; col < colCount; col++) {
-        final double ox =
-            col * tileW + (row % 2 == 0 ? 0 : tileW / 2) - tileW;
+        final double ox = col * tileW + (row % 2 == 0 ? 0 : tileW / 2) - tileW;
         final double oy = row * tileH;
 
         // Rhombus / diamond tile
