@@ -66,5 +66,19 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- Web3Auth OAuth redirect — must match AuthService._redirectScheme -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>auth.meshlix</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>meshlix</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

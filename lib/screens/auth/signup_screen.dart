@@ -1,10 +1,16 @@
+import 'dart:io';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:web3auth_flutter/input.dart';
+import 'package:web3auth_flutter/web3auth_flutter.dart';
+import '../../services/auth/auth_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/auth/custom_text_field.dart';
 import '../../widgets/auth/primary_button.dart';
+import '../../widgets/auth/wallet_connect_sheet.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -13,82 +19,128 @@ class SignupScreen extends StatefulWidget {
   State<SignupScreen> createState() => _SignupScreenState();
 }
 
-class _SignupScreenState extends State<SignupScreen> {
+class _SignupScreenState extends State<SignupScreen>
+    with WidgetsBindingObserver {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
 
-  bool _isLoading = false;
   bool _agreeToTerms = false;
-  double _passwordStrength = 0;
+  bool _isEmailLoading = false;
+  bool _isGoogleLoading = false;
+  bool _isWalletLoading = false;
+
+  bool get _anyLoading =>
+      _isEmailLoading || _isGoogleLoading || _isWalletLoading;
 
   @override
   void initState() {
     super.initState();
-    _passwordController.addListener(() {
-      setState(() {
-        _passwordStrength = _calculateStrength(_passwordController.text);
-      });
-    });
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _nameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  double _calculateStrength(String password) {
-    if (password.isEmpty) return 0;
-    double strength = 0;
-    if (password.length >= 8) strength += 0.25;
-    if (password.length >= 12) strength += 0.1;
-    if (RegExp(r'[A-Z]').hasMatch(password)) strength += 0.2;
-    if (RegExp(r'[0-9]').hasMatch(password)) strength += 0.2;
-    if (RegExp(r'[!@#\$&*~%^()_\-+=<>?]').hasMatch(password)) strength += 0.25;
-    return strength.clamp(0.0, 1.0);
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && Platform.isAndroid) {
+      Web3AuthFlutter.setCustomTabsClosed();
+    }
   }
 
-  Color _strengthColor(double strength) {
-    if (strength < 0.35) return AppColors.error;
-    if (strength < 0.65) return const Color(0xFFFFAA00);
-    return AppColors.primaryAccent;
-  }
-
-  String _strengthLabel(double strength) {
-    if (strength < 0.35) return 'Weak';
-    if (strength < 0.65) return 'Fair';
-    if (strength < 0.85) return 'Good';
-    return 'Strong';
-  }
+  // ─── Auth handlers ────────────────────────────────────────────────────────
 
   Future<void> _handleSignup() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
     if (!_agreeToTerms) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Please accept the Terms & Conditions to continue.',
-            style: GoogleFonts.rajdhani(),
-          ),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      _showSnack('Please accept the Terms & Conditions to continue.');
       return;
     }
-    if (_formKey.currentState?.validate() ?? false) {
-      setState(() => _isLoading = true);
-      // TODO: implement registration
-      await Future.delayed(const Duration(seconds: 1));
-      if (mounted) setState(() => _isLoading = false);
+
+    setState(() => _isEmailLoading = true);
+    try {
+      await AuthService.instance
+          .signInWithEmail(_emailController.text.trim());
+      // TODO: After auth, persist _nameController.text + _phoneController.text
+      //       to your backend / user profile database.
+      // TODO: Navigate to home screen.
+      if (mounted) _showSnack('Account created!', success: true);
+    } on UserCancelledException {
+      // User closed the browser tab — silent
+    } catch (e) {
+      if (mounted) _showSnack('Sign-up failed: $e');
+    } finally {
+      if (mounted) setState(() => _isEmailLoading = false);
     }
   }
+
+  Future<void> _handleGoogleSignup() async {
+    if (!_agreeToTerms) {
+      _showSnack('Please accept the Terms & Conditions to continue.');
+      return;
+    }
+    setState(() => _isGoogleLoading = true);
+    try {
+      await AuthService.instance.signInWithGoogle();
+      // TODO: Navigate to home screen.
+      if (mounted) _showSnack('Signed up with Google!', success: true);
+    } on UserCancelledException {
+      // cancelled
+    } catch (e) {
+      if (mounted) _showSnack('Google sign-up failed: $e');
+    } finally {
+      if (mounted) setState(() => _isGoogleLoading = false);
+    }
+  }
+
+  Future<void> _handleWalletConnect() async {
+    if (!_agreeToTerms) {
+      _showSnack('Please accept the Terms & Conditions to continue.');
+      return;
+    }
+    final walletId = await WalletConnectSheet.show(context);
+    if (walletId == null || !mounted) return;
+
+    setState(() => _isWalletLoading = true);
+    try {
+      await AuthService.instance.signInWithWallet(walletId);
+      // TODO: Navigate to home screen.
+      if (mounted) _showSnack('Wallet connected!', success: true);
+    } on UnimplementedError catch (e) {
+      if (mounted) _showSnack(e.message ?? 'Wallet connection not set up yet.');
+    } catch (e) {
+      if (mounted) _showSnack('Wallet connection failed: $e');
+    } finally {
+      if (mounted) setState(() => _isWalletLoading = false);
+    }
+  }
+
+  void _showSnack(String message, {bool success = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: GoogleFonts.rajdhani(color: AppColors.textPrimary),
+        ),
+        backgroundColor:
+            success ? const Color(0xFF1E3A00) : AppColors.surfaceVariant,
+        behavior: SnackBarBehavior.floating,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  // ─── Build ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -114,7 +166,8 @@ class _SignupScreenState extends State<SignupScreen> {
                     const SizedBox(height: 40),
                     _buildLogoHeader(),
                     const SizedBox(height: 32),
-                    // ── Form fields ──────────────────────────────────────
+
+                    // ── Form fields ────────────────────────────────────────
                     CustomTextField(
                       label: 'Full Name',
                       prefixIcon: Icons.person_outline,
@@ -129,6 +182,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
+
                     CustomTextField(
                       label: 'Email Address',
                       prefixIcon: Icons.email_outlined,
@@ -146,64 +200,69 @@ class _SignupScreenState extends State<SignupScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
+
                     CustomTextField(
                       label: 'Phone Number (optional)',
                       prefixIcon: Icons.phone_outlined,
                       controller: _phoneController,
                       keyboardType: TextInputType.phone,
-                      textInputAction: TextInputAction.next,
-                    ),
-                    const SizedBox(height: 16),
-                    CustomTextField(
-                      label: 'Password',
-                      prefixIcon: Icons.lock_outline,
-                      isPassword: true,
-                      controller: _passwordController,
-                      textInputAction: TextInputAction.next,
-                      validator: (v) {
-                        if (v == null || v.isEmpty) {
-                          return 'Password is required';
-                        }
-                        if (v.length < 8) {
-                          return 'Password must be at least 8 characters';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    // ── Password strength indicator ──────────────────────
-                    _buildPasswordStrength(),
-                    const SizedBox(height: 16),
-                    CustomTextField(
-                      label: 'Confirm Password',
-                      prefixIcon: Icons.lock_outline,
-                      isPassword: true,
-                      controller: _confirmPasswordController,
                       textInputAction: TextInputAction.done,
-                      validator: (v) {
-                        if (v == null || v.isEmpty) {
-                          return 'Please confirm your password';
-                        }
-                        if (v != _passwordController.text) {
-                          return 'Passwords do not match';
-                        }
-                        return null;
-                      },
+                    ),
+                    const SizedBox(height: 8),
+
+                    // ── Passwordless note ─────────────────────────────────
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'A magic link will be emailed to verify your address.',
+                        style: GoogleFonts.rajdhani(
+                          color: AppColors.textHint,
+                          fontSize: 12,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 20),
-                    // ── Terms checkbox ───────────────────────────────────
+
+                    // ── Terms checkbox ─────────────────────────────────────
                     _buildTermsRow(),
                     const SizedBox(height: 28),
+
+                    // ── Create Account button ──────────────────────────────
                     PrimaryButton(
                       text: 'CREATE ACCOUNT',
-                      onPressed: _isLoading ? null : _handleSignup,
-                      isLoading: _isLoading,
+                      onPressed: _anyLoading ? null : _handleSignup,
+                      isLoading: _isEmailLoading,
                     ),
                     const SizedBox(height: 28),
+
+                    // ── OR divider ─────────────────────────────────────────
                     _buildOrDivider(),
                     const SizedBox(height: 20),
-                    _buildSocialButtons(),
+
+                    // ── Google signup ──────────────────────────────────────
+                    _AuthProviderButton(
+                      icon: FontAwesomeIcons.google,
+                      iconColor: const Color(0xFFEA4335),
+                      label: 'Continue with Google',
+                      isLoading: _isGoogleLoading,
+                      onPressed: _anyLoading ? null : _handleGoogleSignup,
+                    ),
+                    const SizedBox(height: 12),
+
+                    // ── Wallet signup ──────────────────────────────────────
+                    _AuthProviderButton(
+                      icon: Icons.account_balance_wallet_outlined,
+                      isMaterialIcon: true,
+                      iconColor: AppColors.primaryAccent,
+                      label: 'Connect External Wallet',
+                      isLoading: _isWalletLoading,
+                      onPressed: _anyLoading ? null : _handleWalletConnect,
+                      highlightBorder: true,
+                    ),
                     const SizedBox(height: 36),
+
+                    // ── Login link ─────────────────────────────────────────
                     _buildLoginLink(context),
                     const SizedBox(height: 32),
                   ],
@@ -215,6 +274,8 @@ class _SignupScreenState extends State<SignupScreen> {
       ),
     );
   }
+
+  // ─── Helpers ──────────────────────────────────────────────────────────────
 
   Widget _buildLogoHeader() {
     return Column(
@@ -243,37 +304,6 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  Widget _buildPasswordStrength() {
-    if (_passwordController.text.isEmpty) return const SizedBox.shrink();
-    final strength = _passwordStrength;
-    final color = _strengthColor(strength);
-    return Column(
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: strength,
-            backgroundColor: AppColors.border,
-            valueColor: AlwaysStoppedAnimation<Color>(color),
-            minHeight: 4,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Align(
-          alignment: Alignment.centerRight,
-          child: Text(
-            _strengthLabel(strength),
-            style: GoogleFonts.rajdhani(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildTermsRow() {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -291,9 +321,7 @@ class _SignupScreenState extends State<SignupScreen> {
           child: RichText(
             text: TextSpan(
               style: GoogleFonts.rajdhani(
-                color: AppColors.textSecondary,
-                fontSize: 13,
-              ),
+                  color: AppColors.textSecondary, fontSize: 13),
               children: [
                 const TextSpan(text: 'I agree to the '),
                 TextSpan(
@@ -303,7 +331,10 @@ class _SignupScreenState extends State<SignupScreen> {
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
                   ),
-                  recognizer: TapGestureRecognizer()..onTap = () {},
+                  recognizer: TapGestureRecognizer()
+                    ..onTap = () {
+                      // TODO: Launch terms URL
+                    },
                 ),
               ],
             ),
@@ -334,28 +365,6 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  Widget _buildSocialButtons() {
-    return Row(
-      children: [
-        Expanded(
-          child: _SocialButton(
-            icon: FontAwesomeIcons.google,
-            label: 'Google',
-            onPressed: () {},
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _SocialButton(
-            icon: FontAwesomeIcons.apple,
-            label: 'Apple',
-            onPressed: () {},
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildLoginLink(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -363,9 +372,7 @@ class _SignupScreenState extends State<SignupScreen> {
         Text(
           'Already have an account? ',
           style: GoogleFonts.rajdhani(
-            color: AppColors.textSecondary,
-            fontSize: 14,
-          ),
+              color: AppColors.textSecondary, fontSize: 14),
         ),
         GestureDetector(
           onTap: () => Navigator.pop(context),
@@ -383,41 +390,78 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 }
 
-// ─── Shared widgets ──────────────────────────────────────────────────────────
+// ─── Auth Provider Button ─────────────────────────────────────────────────────
 
-class _SocialButton extends StatelessWidget {
-  final IconData icon;
+class _AuthProviderButton extends StatelessWidget {
+  final dynamic icon;
+  final bool isMaterialIcon;
+  final Color iconColor;
   final String label;
-  final VoidCallback onPressed;
+  final bool isLoading;
+  final VoidCallback? onPressed;
+  final bool highlightBorder;
 
-  const _SocialButton({
+  const _AuthProviderButton({
     required this.icon,
+    required this.iconColor,
     required this.label,
+    required this.isLoading,
     required this.onPressed,
+    this.isMaterialIcon = false,
+    this.highlightBorder = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      onPressed: onPressed,
-      icon: FaIcon(icon, size: 15, color: AppColors.textPrimary),
-      label: Text(
-        label,
-        style: GoogleFonts.rajdhani(
-          color: AppColors.textPrimary,
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: OutlinedButton(
+        onPressed: isLoading ? null : onPressed,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: AppColors.surfaceVariant,
+          side: BorderSide(
+            color: highlightBorder
+                ? AppColors.primaryAccent.withValues(alpha: 0.5)
+                : AppColors.border,
+            width: highlightBorder ? 1.5 : 1.0,
+          ),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          padding: EdgeInsets.zero,
         ),
-      ),
-      style: OutlinedButton.styleFrom(
-        backgroundColor: AppColors.surfaceVariant,
-        side: const BorderSide(color: AppColors.border, width: 1),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        child: isLoading
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  color: AppColors.primaryAccent,
+                  strokeWidth: 2,
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  isMaterialIcon
+                      ? Icon(icon as IconData, color: iconColor, size: 18)
+                      : FaIcon(icon as IconData, color: iconColor, size: 16),
+                  const SizedBox(width: 10),
+                  Text(
+                    label,
+                    style: GoogleFonts.rajdhani(
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }
 }
+
+// ─── Geometric Background ─────────────────────────────────────────────────────
 
 class _GeometricBackground extends StatelessWidget {
   const _GeometricBackground();
@@ -447,7 +491,8 @@ class _GeometricPainter extends CustomPainter {
 
     for (int row = -1; row < rowCount; row++) {
       for (int col = -1; col < colCount; col++) {
-        final double ox = col * tileW + (row % 2 == 0 ? 0 : tileW / 2) - tileW;
+        final double ox =
+            col * tileW + (row % 2 == 0 ? 0 : tileW / 2) - tileW;
         final double oy = row * tileH;
 
         final path = Path()

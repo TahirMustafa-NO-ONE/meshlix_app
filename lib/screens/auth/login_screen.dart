@@ -1,9 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:web3auth_flutter/input.dart';
+import 'package:web3auth_flutter/web3auth_flutter.dart';
+import '../../services/auth/auth_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/auth/custom_text_field.dart';
 import '../../widgets/auth/primary_button.dart';
+import '../../widgets/auth/wallet_connect_sheet.dart';
 import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -13,27 +19,109 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen>
+    with WidgetsBindingObserver {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  bool _isLoading = false;
+
+  bool _isEmailLoading = false;
+  bool _isGoogleLoading = false;
+  bool _isWalletLoading = false;
+
+  bool get _anyLoading =>
+      _isEmailLoading || _isGoogleLoading || _isWalletLoading;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _emailController.dispose();
-    _passwordController.dispose();
     super.dispose();
   }
 
-  Future<void> _handleLogin() async {
-    if (_formKey.currentState?.validate() ?? false) {
-      setState(() => _isLoading = true);
-      // TODO: implement authentication
-      await Future.delayed(const Duration(seconds: 1));
-      if (mounted) setState(() => _isLoading = false);
+  /// Android: when the Chrome Custom Tab is closed by the user, trigger the
+  /// UserCancelledException so the loading state is cleared correctly.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && Platform.isAndroid) {
+      Web3AuthFlutter.setCustomTabsClosed();
     }
   }
+
+  // ─── Auth handlers ────────────────────────────────────────────────────────
+
+  Future<void> _handleEmailLogin() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    setState(() => _isEmailLoading = true);
+    try {
+      await AuthService.instance.signInWithEmail(_emailController.text.trim());
+      // TODO: Navigate to home screen after successful login
+      if (mounted) _showSnack('Signed in successfully!', success: true);
+    } on UserCancelledException {
+      // User closed the browser tab — no error shown
+    } catch (e) {
+      if (mounted) _showSnack('Email sign-in failed: $e');
+    } finally {
+      if (mounted) setState(() => _isEmailLoading = false);
+    }
+  }
+
+  Future<void> _handleGoogleLogin() async {
+    setState(() => _isGoogleLoading = true);
+    try {
+      await AuthService.instance.signInWithGoogle();
+      // TODO: Navigate to home screen after successful login
+      if (mounted) _showSnack('Signed in with Google!', success: true);
+    } on UserCancelledException {
+      // User closed the auth tab
+    } catch (e) {
+      if (mounted) _showSnack('Google sign-in failed: $e');
+    } finally {
+      if (mounted) setState(() => _isGoogleLoading = false);
+    }
+  }
+
+  Future<void> _handleWalletConnect() async {
+    final walletId = await WalletConnectSheet.show(context);
+    if (walletId == null || !mounted) return;
+
+    setState(() => _isWalletLoading = true);
+    try {
+      await AuthService.instance.signInWithWallet(walletId);
+      // TODO: Navigate to home screen after successful login
+      if (mounted) _showSnack('Wallet connected!', success: true);
+    } on UnimplementedError catch (e) {
+      if (mounted) _showSnack(e.message ?? 'Wallet connection not set up yet.');
+    } catch (e) {
+      if (mounted) _showSnack('Wallet connection failed: $e');
+    } finally {
+      if (mounted) setState(() => _isWalletLoading = false);
+    }
+  }
+
+  void _showSnack(String message, {bool success = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: GoogleFonts.rajdhani(color: AppColors.textPrimary),
+        ),
+        backgroundColor:
+            success ? const Color(0xFF1E3A00) : AppColors.surfaceVariant,
+        behavior: SnackBarBehavior.floating,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  // ─── Build ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: AppColors.background,
       body: Stack(
         children: [
+          // Geometric background
           const Positioned.fill(child: _GeometricBackground()),
           // Top accent line
           Positioned(
@@ -49,6 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
             right: 0,
             child: Container(height: 2, color: AppColors.primaryAccent),
           ),
+          // Main content
           SafeArea(
             child: Form(
               key: _formKey,
@@ -60,12 +150,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 48),
                     _buildLogoHeader(),
                     const SizedBox(height: 40),
+
+                    // ── Email field ──────────────────────────────────────
                     CustomTextField(
                       label: 'Email Address',
                       prefixIcon: Icons.email_outlined,
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.next,
+                      textInputAction: TextInputAction.done,
                       validator: (v) {
                         if (v == null || v.trim().isEmpty) {
                           return 'Email is required';
@@ -76,54 +168,57 @@ class _LoginScreenState extends State<LoginScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 16),
-                    CustomTextField(
-                      label: 'Password',
-                      prefixIcon: Icons.lock_outline,
-                      isPassword: true,
-                      controller: _passwordController,
-                      textInputAction: TextInputAction.done,
-                      validator: (v) {
-                        if (v == null || v.isEmpty) {
-                          return 'Password is required';
-                        }
-                        if (v.length < 6) {
-                          return 'Password must be at least 6 characters';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
+
+                    // ── Passwordless hint ──────────────────────────────────
                     Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () {},
-                        style: TextButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        child: Text(
-                          'Forgot Password?',
-                          style: GoogleFonts.rajdhani(
-                            color: AppColors.primaryAccent,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'We\'ll send a magic link — no password needed.',
+                        style: GoogleFonts.rajdhani(
+                          color: AppColors.textHint,
+                          fontSize: 12,
+                          letterSpacing: 0.3,
                         ),
                       ),
                     ),
                     const SizedBox(height: 28),
+
+                    // ── Continue button ─────────────────────────────────
                     PrimaryButton(
-                      text: 'LOG IN',
-                      onPressed: _isLoading ? null : _handleLogin,
-                      isLoading: _isLoading,
+                      text: 'CONTINUE WITH EMAIL',
+                      onPressed: _anyLoading ? null : _handleEmailLogin,
+                      isLoading: _isEmailLoading,
                     ),
                     const SizedBox(height: 28),
+
+                    // ── OR divider ─────────────────────────────────────
                     _buildOrDivider(),
                     const SizedBox(height: 20),
-                    _buildSocialButtons(),
+
+                    // ── Google button ───────────────────────────────────
+                    _AuthProviderButton(
+                      icon: FontAwesomeIcons.google,
+                      iconColor: const Color(0xFFEA4335),
+                      label: 'Continue with Google',
+                      isLoading: _isGoogleLoading,
+                      onPressed: _anyLoading ? null : _handleGoogleLogin,
+                    ),
+                    const SizedBox(height: 12),
+
+                    // ── Wallet button ───────────────────────────────────
+                    _AuthProviderButton(
+                      icon: Icons.account_balance_wallet_outlined,
+                      isMaterialIcon: true,
+                      iconColor: AppColors.primaryAccent,
+                      label: 'Connect External Wallet',
+                      isLoading: _isWalletLoading,
+                      onPressed: _anyLoading ? null : _handleWalletConnect,
+                      highlightBorder: true,
+                    ),
                     const SizedBox(height: 36),
+
+                    // ── Sign up link ────────────────────────────────────
                     _buildSignUpLink(context),
                     const SizedBox(height: 32),
                   ],
@@ -184,28 +279,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildSocialButtons() {
-    return Row(
-      children: [
-        Expanded(
-          child: _SocialButton(
-            icon: FontAwesomeIcons.google,
-            label: 'Google',
-            onPressed: () {},
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _SocialButton(
-            icon: FontAwesomeIcons.apple,
-            label: 'Apple',
-            onPressed: () {},
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildSignUpLink(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -213,9 +286,7 @@ class _LoginScreenState extends State<LoginScreen> {
         Text(
           "Don't have an account? ",
           style: GoogleFonts.rajdhani(
-            color: AppColors.textSecondary,
-            fontSize: 14,
-          ),
+              color: AppColors.textSecondary, fontSize: 14),
         ),
         GestureDetector(
           onTap: () => Navigator.push(
@@ -236,43 +307,78 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-// ─── Social Button ──────────────────────────────────────────────────────────
+// ─── Auth Provider Button ────────────────────────────────────────────────────
 
-class _SocialButton extends StatelessWidget {
-  final IconData icon;
+class _AuthProviderButton extends StatelessWidget {
+  final dynamic icon; // IconData (Material) or IconData (FontAwesome)
+  final bool isMaterialIcon;
+  final Color iconColor;
   final String label;
-  final VoidCallback onPressed;
+  final bool isLoading;
+  final VoidCallback? onPressed;
+  final bool highlightBorder;
 
-  const _SocialButton({
+  const _AuthProviderButton({
     required this.icon,
+    required this.iconColor,
     required this.label,
+    required this.isLoading,
     required this.onPressed,
+    this.isMaterialIcon = false,
+    this.highlightBorder = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      onPressed: onPressed,
-      icon: FaIcon(icon, size: 15, color: AppColors.textPrimary),
-      label: Text(
-        label,
-        style: GoogleFonts.rajdhani(
-          color: AppColors.textPrimary,
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: OutlinedButton(
+        onPressed: isLoading ? null : onPressed,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: AppColors.surfaceVariant,
+          side: BorderSide(
+            color: highlightBorder
+                ? AppColors.primaryAccent.withValues(alpha: 0.5)
+                : AppColors.border,
+            width: highlightBorder ? 1.5 : 1.0,
+          ),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          padding: EdgeInsets.zero,
         ),
-      ),
-      style: OutlinedButton.styleFrom(
-        backgroundColor: AppColors.surfaceVariant,
-        side: const BorderSide(color: AppColors.border, width: 1),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        child: isLoading
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  color: AppColors.primaryAccent,
+                  strokeWidth: 2,
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  isMaterialIcon
+                      ? Icon(icon as IconData, color: iconColor, size: 18)
+                      : FaIcon(icon as IconData, color: iconColor, size: 16),
+                  const SizedBox(width: 10),
+                  Text(
+                    label,
+                    style: GoogleFonts.rajdhani(
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }
 }
 
-// ─── Geometric Background ───────────────────────────────────────────────────
+// ─── Geometric Background ────────────────────────────────────────────────────
 
 class _GeometricBackground extends StatelessWidget {
   const _GeometricBackground();
@@ -302,7 +408,8 @@ class _GeometricPainter extends CustomPainter {
 
     for (int row = -1; row < rowCount; row++) {
       for (int col = -1; col < colCount; col++) {
-        final double ox = col * tileW + (row % 2 == 0 ? 0 : tileW / 2) - tileW;
+        final double ox =
+            col * tileW + (row % 2 == 0 ? 0 : tileW / 2) - tileW;
         final double oy = row * tileH;
 
         // Rhombus / diamond tile
@@ -314,7 +421,7 @@ class _GeometricPainter extends CustomPainter {
           ..close();
         canvas.drawPath(path, paint);
 
-        // Vertical centre line — gives cube depth illusion
+        // Vertical centre line — cube depth
         canvas.drawLine(
           Offset(ox + tileW / 2, oy),
           Offset(ox + tileW / 2, oy + tileH / 2),

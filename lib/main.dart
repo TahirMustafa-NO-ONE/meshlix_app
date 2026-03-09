@@ -1,17 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'services/auth/auth_service.dart';
 import 'theme/app_theme.dart';
 import 'screens/auth/login_screen.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Load environment variables from .env file
+  await dotenv.load(fileName: ".env");
+
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
     ),
   );
+
   runApp(const MeshlixApp());
+
+  // Initialize Web3Auth SDK AFTER widget tree is established.
+  // This prevents crashes from native channel calls during SDK init.
+  // Non-fatal on first launch — the user just needs to log in.
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    await AuthService.instance.initialize();
+  });
 }
 
 class MeshlixApp extends StatelessWidget {
@@ -23,6 +37,8 @@ class MeshlixApp extends StatelessWidget {
       title: 'Meshlix',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
+      // If a session was restored, you can swap LoginScreen for your home screen here:
+      //   home: AuthService.instance.isAuthenticated ? const HomeScreen() : const LoginScreen(),
       home: const LoginScreen(),
     );
   }
