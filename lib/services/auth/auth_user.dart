@@ -16,6 +16,12 @@ class AuthUser {
 
   final AuthProvider provider;
 
+  // Additional Web3Auth metadata
+  final String? verifier;
+  final String? verifierId;
+  final String? typeOfLogin;
+  final String? aggregateVerifier;
+
   const AuthUser({
     this.email,
     this.name,
@@ -23,6 +29,10 @@ class AuthUser {
     required this.publicAddress,
     required this.username,
     required this.provider,
+    this.verifier,
+    this.verifierId,
+    this.typeOfLogin,
+    this.aggregateVerifier,
   });
 
   factory AuthUser.fromWeb3AuthResponse({
@@ -41,6 +51,10 @@ class AuthUser {
       publicAddress: address,
       username: username,
       provider: provider,
+      verifier: userInfo?.verifier,
+      verifierId: userInfo?.verifierId,
+      typeOfLogin: userInfo?.typeOfLogin,
+      aggregateVerifier: userInfo?.aggregateVerifier,
     );
   }
 
@@ -48,6 +62,21 @@ class AuthUser {
 
   String get shortAddress =>
       '${publicAddress.substring(0, 6)}...${publicAddress.substring(publicAddress.length - 4)}';
+
+  String get providerDisplayName {
+    switch (provider) {
+      case AuthProvider.google:
+        return 'Google';
+      case AuthProvider.emailOTP:
+        return 'Email (OTP)';
+      case AuthProvider.wallet:
+        return 'Web3Auth Wallet';
+      case AuthProvider.externalWallet:
+        return 'External Wallet';
+      case AuthProvider.unknown:
+        return 'Unknown';
+    }
+  }
 
   @override
   String toString() =>

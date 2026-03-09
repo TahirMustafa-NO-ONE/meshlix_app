@@ -6,6 +6,7 @@ import 'package:web3auth_flutter/input.dart';
 import 'package:web3auth_flutter/output.dart';
 import 'package:web3dart/web3dart.dart';
 import 'auth_user.dart';
+import '../storage/user_storage.dart';
 
 class AuthService {
   AuthService._();
@@ -80,6 +81,10 @@ class AuthService {
       final response = await Web3AuthFlutter.getWeb3AuthResponse();
       if (response.privKey != null && response.privKey!.isNotEmpty) {
         _currentUser = _toUser(response, AuthProvider.unknown);
+
+        // Save user to storage
+        await UserStorage.instance.saveUser(_currentUser!);
+
         debugPrint('[AuthService] Session restored for user');
       }
     } on Object catch (_) {
@@ -99,6 +104,10 @@ class AuthService {
       LoginParams(loginProvider: Provider.google),
     );
     _currentUser = _toUser(response, AuthProvider.google);
+
+    // Save user to storage
+    await UserStorage.instance.saveUser(_currentUser!);
+
     return _currentUser!;
   }
 
@@ -119,6 +128,10 @@ class AuthService {
       ),
     );
     _currentUser = _toUser(response, AuthProvider.emailOTP);
+
+    // Save user to storage
+    await UserStorage.instance.saveUser(_currentUser!);
+
     return _currentUser!;
   }
 
@@ -132,12 +145,10 @@ class AuthService {
   /// External wallets require using Web3Auth's Wallet Services or Custom Authentication.
   /// For now, this returns an error - implement using Web3Auth Wallet Services SDK.
   Future<AuthUser> signInWithWallet() async {
-    throw UnimplementedError(
-      'External wallet connection via Web3Auth requires additional setup.\n'
-      'Options:\n'
-      '1. Use Web3Auth Wallet Services (separate SDK)\n'
-      '2. Configure custom JWT verifier in Web3Auth dashboard\n'
-      '3. Use direct WalletConnect integration (requires separate package)',
+    debugPrint('[AuthService] External wallet sign-in coming soon');
+    throw Exception(
+      'External wallet connection is coming soon.\n'
+      'Please use Google Sign-In or Email OTP for now.',
     );
   }
 
