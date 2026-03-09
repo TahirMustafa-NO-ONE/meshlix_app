@@ -10,7 +10,6 @@ import '../../services/auth/auth_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/auth/custom_text_field.dart';
 import '../../widgets/auth/primary_button.dart';
-import '../../widgets/auth/wallet_connect_sheet.dart';
 import '../home/home_screen.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -132,25 +131,14 @@ class _AuthScreenState extends State<AuthScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _handleWalletConnect() async {
-    // First, show the wallet selection sheet
-    final selectedWallet = await WalletConnectSheet.show(context);
-
-    // User dismissed the sheet without selecting a wallet
-    if (selectedWallet == null) return;
-
     setState(() {
       _isWalletLoading = true;
       _isWalletConnecting = true;
     });
 
     try {
-      // Pass the selected wallet ID to avoid showing the Reown modal
-      // For 'metamask': direct connection to MetaMask
-      // For 'walletconnect': show the Reown modal with QR code
-      await AuthService.instance.signInWithWallet(
-        context,
-        walletId: selectedWallet,
-      );
+      // Use Web3Auth's built-in external wallet connection
+      await AuthService.instance.signInWithWallet();
 
       if (mounted) {
         setState(() {
@@ -158,6 +146,14 @@ class _AuthScreenState extends State<AuthScreen> with WidgetsBindingObserver {
           _isWalletConnecting = false;
         });
         _navigateToHome();
+      }
+    } on UserCancelledException {
+      // User closed the wallet connection dialog
+      if (mounted) {
+        setState(() {
+          _isWalletLoading = false;
+          _isWalletConnecting = false;
+        });
       }
     } on UnimplementedError catch (e) {
       if (mounted) {
@@ -173,15 +169,7 @@ class _AuthScreenState extends State<AuthScreen> with WidgetsBindingObserver {
           _isWalletLoading = false;
           _isWalletConnecting = false;
         });
-        final errorMessage = e.toString();
-        if (errorMessage.contains('timed out') ||
-            errorMessage.contains('timeout')) {
-          _showSnack(
-            'Connection timed out. Please ensure you approved the connection in your wallet.',
-          );
-        } else {
-          _showSnack('Wallet connection failed: $e');
-        }
+        _showSnack('Wallet connection failed: $e');
       }
     }
   }

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'services/auth/auth_service.dart';
-import 'services/wallet/wallet_connect_service.dart';
 import 'theme/app_theme.dart';
 import 'screens/auth/auth_screen.dart';
 import 'screens/home/home_screen.dart';
@@ -22,12 +21,11 @@ Future<void> main() async {
 
   runApp(const MeshlixApp());
 
-  // Initialize Web3Auth SDK and WalletConnect AFTER widget tree is established.
+  // Initialize Web3Auth SDK AFTER widget tree is established.
   // This prevents crashes from native channel calls during SDK init.
   // Non-fatal on first launch — the user just needs to log in.
   WidgetsBinding.instance.addPostFrameCallback((_) async {
     await AuthService.instance.initialize();
-    await WalletConnectService.instance.initialize();
   });
 }
 
