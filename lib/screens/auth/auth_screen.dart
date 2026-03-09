@@ -319,7 +319,7 @@ class _AuthScreenState extends State<AuthScreen> with WidgetsBindingObserver {
         ),
         const SizedBox(height: 6),
         Text(
-          'Connect. Build. Deliver.',
+          'Secure. Private. Decentralized.',
           style: GoogleFonts.rajdhani(
             color: AppColors.textSecondary,
             fontSize: 13,

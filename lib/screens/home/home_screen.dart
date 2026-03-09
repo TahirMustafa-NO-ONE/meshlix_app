@@ -99,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Web3 Identity • Users',
+                            'P2P Chat • Contacts',
                             style: GoogleFonts.rajdhani(
                               color: AppColors.textSecondary,
                               fontSize: 12,
@@ -230,7 +230,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'All Users (${_allUsers.length})',
+                        'All Contacts (${_allUsers.length})',
                         style: GoogleFonts.rajdhani(
                           color: AppColors.textPrimary,
                           fontSize: 16,
@@ -278,7 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                'No users found',
+                                'No contacts yet',
                                 style: GoogleFonts.rajdhani(
                                   color: AppColors.textSecondary,
                                   fontSize: 16,

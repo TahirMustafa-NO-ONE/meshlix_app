@@ -58,7 +58,7 @@ class ProfileScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Web3 Identity • Profile',
+                              'P2P Chat • Profile',
                               style: GoogleFonts.rajdhani(
                                 color: AppColors.textSecondary,
                                 fontSize: 12,

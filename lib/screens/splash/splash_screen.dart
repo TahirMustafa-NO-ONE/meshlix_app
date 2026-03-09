@@ -114,7 +114,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 const SizedBox(height: 8),
                 // Tagline
                 Text(
-                  'Connect. Build. Deliver.',
+                  'Secure. Private. Decentralized.',
                   style: GoogleFonts.rajdhani(
                     color: AppColors.textSecondary,
                     fontSize: 14,
