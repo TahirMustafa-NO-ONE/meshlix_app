@@ -7,6 +7,7 @@ import 'package:web3auth_flutter/output.dart';
 import 'package:web3dart/web3dart.dart';
 import 'auth_user.dart';
 import '../storage/user_storage.dart';
+import '../session/session_manager.dart';
 
 class AuthService {
   AuthService._();
@@ -41,15 +42,57 @@ class AuthService {
 
   /// Call once after [runApp] — use [MeshlixApp]'s addPostFrameCallback.
   ///
-  /// Two-phase init:
-  ///  1. [Web3AuthFlutter.init] — registers the SDK with the native layer.
-  ///     If this fails (e.g. placeholder clientId, missing native plugin),
-  ///     the rest of the app still runs normally; auth buttons will surface
-  ///     the error inline.
-  ///  2. [Web3AuthFlutter.initialize] — tries to restore a prior session.
-  ///     Expected to throw on first launch; caught and ignored.
+  /// Three-phase init:
+  ///  1. Check for persisted session in SessionManager/UserStorage
+  ///  2. [Web3AuthFlutter.init] — registers the SDK with the native layer.
+  ///  3. [Web3AuthFlutter.initialize] — only called if no local session exists
   Future<void> initialize() async {
-    // ── Phase 1: SDK registration ──────────────────────────────────────────
+    // ── Phase 1: Check for persisted local session ─────────────────────────
+    // This is critical for maintaining login across app restarts
+    bool hasLocalSession = false;
+
+    try {
+      hasLocalSession = await SessionManager.instance.isLoggedIn();
+
+      if (hasLocalSession) {
+        debugPrint('[AuthService] Found local session, attempting to restore...');
+
+        // Get stored session data
+        final session = await SessionManager.instance.getSession();
+        final userAddress = session?['userAddress'] as String?;
+
+        if (userAddress != null) {
+          // Load user details from UserStorage
+          final users = await UserStorage.instance.getAllUsers();
+          final userIndex = users.indexWhere(
+            (u) => u.publicAddress == userAddress,
+          );
+
+          if (userIndex != -1) {
+            // Restore the user session without calling Web3Auth
+            _currentUser = users[userIndex];
+
+            debugPrint(
+              '[AuthService] Local session restored for: ${_currentUser!.email ?? _currentUser!.publicAddress}',
+            );
+            debugPrint(
+              '[AuthService] Skipping Web3Auth.initialize() - using local session',
+            );
+          } else {
+            debugPrint(
+              '[AuthService] User not found in storage, session will be cleared by splash screen',
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[AuthService] Error restoring local session: $e');
+      // Continue initialization - session will be cleared by splash screen if invalid
+      _currentUser = null;
+      hasLocalSession = false;
+    }
+
+    // ── Phase 2: SDK registration ──────────────────────────────────────────
     try {
       await Web3AuthFlutter.init(
         Web3AuthOptions(
@@ -64,7 +107,7 @@ class AuthService {
           ),
         ),
       );
-      debugPrint('[AuthService] Web3Auth initialized successfully');
+      debugPrint('[AuthService] Web3Auth SDK initialized');
       debugPrint('[AuthService] Client ID: ${_clientId.substring(0, 20)}...');
       debugPrint('[AuthService] Network: $_network');
       debugPrint('[AuthService] Redirect: $_redirectScheme://auth');
@@ -75,21 +118,31 @@ class AuthService {
       return;
     }
 
-    // ── Phase 2: Session restoration (optional) ────────────────────────────
-    try {
-      await Web3AuthFlutter.initialize();
-      final response = await Web3AuthFlutter.getWeb3AuthResponse();
-      if (response.privKey != null && response.privKey!.isNotEmpty) {
-        _currentUser = _toUser(response, AuthProvider.unknown);
+    // ── Phase 3: Web3Auth session restoration (only if no local session) ───
+    // Only attempt Web3Auth session restoration if we don't already have a local session
+    if (!hasLocalSession) {
+      try {
+        await Web3AuthFlutter.initialize();
+        final response = await Web3AuthFlutter.getWeb3AuthResponse();
+        if (response.privKey != null && response.privKey!.isNotEmpty) {
+          _currentUser = _toUser(response, AuthProvider.unknown);
 
-        // Save user to storage
-        await UserStorage.instance.saveUser(_currentUser!);
+          // Save user to storage
+          await UserStorage.instance.saveUser(_currentUser!);
 
-        debugPrint('[AuthService] Session restored for user');
+          // Save session for persistent login
+          await SessionManager.instance.saveSession(
+            authToken: response.privKey ?? '',
+            userId: _currentUser!.email ?? _currentUser!.publicAddress,
+            userAddress: _currentUser!.publicAddress,
+          );
+
+          debugPrint('[AuthService] Web3Auth session restored');
+        }
+      } on Object catch (_) {
+        // No prior Web3Auth session — user must sign in.
+        debugPrint('[AuthService] No Web3Auth session found');
       }
-    } on Object catch (_) {
-      // No prior session — user must sign in.
-      debugPrint('[AuthService] No existing session found');
     }
   }
 
@@ -107,6 +160,13 @@ class AuthService {
 
     // Save user to storage
     await UserStorage.instance.saveUser(_currentUser!);
+
+    // Save session for persistent login
+    await SessionManager.instance.saveSession(
+      authToken: response.privKey ?? '',
+      userId: _currentUser!.email ?? _currentUser!.publicAddress,
+      userAddress: _currentUser!.publicAddress,
+    );
 
     return _currentUser!;
   }
@@ -131,6 +191,13 @@ class AuthService {
 
     // Save user to storage
     await UserStorage.instance.saveUser(_currentUser!);
+
+    // Save session for persistent login
+    await SessionManager.instance.saveSession(
+      authToken: response.privKey ?? '',
+      userId: _currentUser!.email ?? _currentUser!.publicAddress,
+      userAddress: _currentUser!.publicAddress,
+    );
 
     return _currentUser!;
   }
@@ -169,6 +236,10 @@ class AuthService {
     } finally {
       // Always clear the current user, regardless of errors
       _currentUser = null;
+
+      // Clear session data for persistent login
+      await SessionManager.instance.clearSession();
+      debugPrint('[AuthService] Session cleared');
     }
   }
 

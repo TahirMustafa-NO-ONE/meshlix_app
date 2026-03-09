@@ -116,7 +116,9 @@ class ProfileScreen extends StatelessWidget {
                             height: 64,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: AppColors.primaryAccent.withValues(alpha: 0.2),
+                              color: AppColors.primaryAccent.withValues(
+                                alpha: 0.2,
+                              ),
                               border: Border.all(
                                 color: AppColors.primaryAccent,
                                 width: 2,
@@ -336,10 +338,7 @@ class ProfileScreen extends StatelessWidget {
 
                           // Verifier (Web3Auth specific)
                           if (user.verifier != null) ...[
-                            _InfoRow(
-                              label: 'Verifier',
-                              value: user.verifier!,
-                            ),
+                            _InfoRow(label: 'Verifier', value: user.verifier!),
                             const SizedBox(height: 12),
                           ],
 
@@ -448,9 +447,11 @@ class ProfileScreen extends StatelessWidget {
   Future<void> _handleSignOut(BuildContext context) async {
     await AuthService.instance.signOut();
     if (context.mounted) {
-      Navigator.of(
-        context,
-      ).pushReplacement(MaterialPageRoute(builder: (_) => const AuthScreen()));
+      // Use pushAndRemoveUntil to clear all previous routes from the stack
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const AuthScreen()),
+        (route) => false, // Remove all previous routes
+      );
     }
   }
 }

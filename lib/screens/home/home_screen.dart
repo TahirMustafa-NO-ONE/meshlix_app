@@ -36,9 +36,9 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading users: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading users: $e')));
       }
     }
   }
@@ -46,8 +46,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _handleSignOut() async {
     await AuthService.instance.signOut();
     if (mounted) {
-      Navigator.of(context).pushReplacement(
+      // Use pushAndRemoveUntil to clear all previous routes from the stack
+      Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const AuthScreen()),
+        (route) => false, // Remove all previous routes
       );
     }
   }
@@ -55,9 +57,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onBottomNavTap(int index) {
     if (index == 1) {
       // Navigate to profile
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const ProfileScreen()),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const ProfileScreen()));
     } else {
       setState(() => _selectedIndex = index);
     }
@@ -175,7 +177,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             height: 56,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: AppColors.primaryAccent.withValues(alpha: 0.2),
+                              color: AppColors.primaryAccent.withValues(
+                                alpha: 0.2,
+                              ),
                               border: Border.all(
                                 color: AppColors.primaryAccent,
                                 width: 2,
@@ -290,51 +294,51 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         )
                       : _allUsers.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.people_outline,
-                                    size: 64,
-                                    color: AppColors.textHint,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'No users found',
-                                    style: GoogleFonts.rajdhani(
-                                      color: AppColors.textSecondary,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                ],
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.people_outline,
+                                size: 64,
+                                color: AppColors.textHint,
                               ),
-                            )
-                          : RefreshIndicator(
-                              onRefresh: _loadUsers,
-                              color: AppColors.primaryAccent,
-                              child: ListView.builder(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24.0,
-                                  vertical: 8.0,
+                              const SizedBox(height: 16),
+                              Text(
+                                'No users found',
+                                style: GoogleFonts.rajdhani(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 16,
                                 ),
-                                itemCount: _allUsers.length,
-                                itemBuilder: (context, index) {
-                                  final user = _allUsers[index];
-                                  final isCurrentUser =
-                                      user.publicAddress ==
-                                          currentUser.publicAddress;
-
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 12.0),
-                                    child: _UserCard(
-                                      user: user,
-                                      isCurrentUser: isCurrentUser,
-                                    ),
-                                  );
-                                },
                               ),
+                            ],
+                          ),
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _loadUsers,
+                          color: AppColors.primaryAccent,
+                          child: ListView.builder(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24.0,
+                              vertical: 8.0,
                             ),
+                            itemCount: _allUsers.length,
+                            itemBuilder: (context, index) {
+                              final user = _allUsers[index];
+                              final isCurrentUser =
+                                  user.publicAddress ==
+                                  currentUser.publicAddress;
+
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12.0),
+                                child: _UserCard(
+                                  user: user,
+                                  isCurrentUser: isCurrentUser,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
                 ),
               ],
             ),
@@ -387,10 +391,7 @@ class _UserCard extends StatelessWidget {
   final AuthUser user;
   final bool isCurrentUser;
 
-  const _UserCard({
-    required this.user,
-    required this.isCurrentUser,
-  });
+  const _UserCard({required this.user, required this.isCurrentUser});
 
   @override
   Widget build(BuildContext context) {
@@ -525,10 +526,7 @@ class _UserCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      '•',
-                      style: TextStyle(color: AppColors.textHint),
-                    ),
+                    Text('•', style: TextStyle(color: AppColors.textHint)),
                     const SizedBox(width: 8),
                     Text(
                       user.shortAddress,
