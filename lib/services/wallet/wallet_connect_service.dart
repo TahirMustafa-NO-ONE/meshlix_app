@@ -9,6 +9,7 @@ class WalletConnectService {
 
   ReownAppKitModal? _appKitModal;
   String? _connectedAddress;
+  String? _lastWalletFilter; // Track the last wallet filter used
 
   bool get isConnected =>
       _appKitModal?.isConnected == true && _connectedAddress != null;
@@ -31,10 +32,40 @@ class WalletConnectService {
     debugPrint('[WalletConnectService] Ready to initialize with context');
   }
 
-  Future<void> _ensureInitialized(BuildContext context) async {
+  Future<void> _ensureInitialized(
+    BuildContext context, {
+    String? specificWalletId,
+  }) async {
+    // If modal exists but wallet filter changed AND not currently connected, dispose and recreate
+    if (_appKitModal != null &&
+        _lastWalletFilter != specificWalletId &&
+        !isConnected) {
+      dispose();
+      _appKitModal = null;
+    }
+
     if (_appKitModal != null) return;
 
+    _lastWalletFilter = specificWalletId;
+
     try {
+      // Configure which wallets to show based on selection
+      Set<String>? includedWallets;
+      Set<String>? featuredWallets;
+
+      if (specificWalletId == 'metamask') {
+        // Show ONLY MetaMask
+        includedWallets = {
+          'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96',
+        };
+        featuredWallets = includedWallets;
+      } else if (specificWalletId == 'walletconnect') {
+        // Show all wallets for QR code scanning
+        featuredWallets = {
+          'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96', // MetaMask
+        };
+      }
+
       _appKitModal = ReownAppKitModal(
         context: context,
         projectId: _projectId,
@@ -48,19 +79,39 @@ class WalletConnectService {
             universal: 'https://meshlix.app',
           ),
         ),
+        // Configure to show only specific wallets
+        includedWalletIds: includedWallets,
+        featuredWalletIds: featuredWallets ?? {},
       );
 
       await _appKitModal!.init();
 
-      // Listen for connection events
+      // Listen for connection events (subscribe once during initialization)
       _appKitModal!.onModalConnect.subscribe(_onModalConnect);
       _appKitModal!.onModalDisconnect.subscribe(_onModalDisconnect);
       _appKitModal!.onSessionUpdateEvent.subscribe(_onSessionUpdate);
+
+      // Check if already connected after initialization
+      _checkExistingConnection();
 
       debugPrint('[WalletConnectService] Initialized successfully');
     } on Object catch (e) {
       debugPrint('[WalletConnectService] Initialization failed: $e');
       rethrow;
+    }
+  }
+
+  /// Check if there's an existing connection after initialization
+  void _checkExistingConnection() {
+    if (_appKitModal?.session != null && _connectedAddress == null) {
+      final namespaces = _appKitModal!.session!.namespaces;
+      final accounts = namespaces?['eip155']?.accounts ?? [];
+      if (accounts.isNotEmpty) {
+        _connectedAddress = accounts.first.split(':').last;
+        debugPrint(
+          '[WalletConnectService] Found existing connection: $_connectedAddress',
+        );
+      }
     }
   }
 
@@ -71,46 +122,87 @@ class WalletConnectService {
   /// Connect to an external wallet using Reown AppKit (WalletConnect v2)
   ///
   /// [context] is required for showing the connection modal
+  /// [walletId] optional specific wallet to connect to. If provided, modal shows only that wallet.
   /// Returns the connected Ethereum address
-  Future<String> connectWallet(BuildContext context) async {
-    await _ensureInitialized(context);
+  Future<String> connectWallet(
+    BuildContext context, {
+    String? walletId,
+  }) async {
+    await _ensureInitialized(context, specificWalletId: walletId);
 
     if (_appKitModal == null) {
-      throw Exception(
-        'WalletConnect not initialized. Initialization failed.',
+      throw Exception('WalletConnect not initialized. Initialization failed.');
+    }
+
+    // Check if already connected
+    if (_appKitModal!.session != null && _connectedAddress != null) {
+      debugPrint(
+        '[WalletConnectService] Already connected: $_connectedAddress',
       );
+      return _connectedAddress!;
     }
 
     try {
-      // Open the modal to connect to a wallet
+      // Open the modal (it will show only the specified wallet if walletId was provided)
       await _appKitModal!.openModalView();
 
       // Wait for connection to be established
       final completer = Completer<String>();
       Timer? timeoutTimer;
+      Timer? checkTimer;
 
       void onConnect(ModalConnect? args) {
-        if (_appKitModal!.session != null) {
+        if (!completer.isCompleted && _appKitModal!.session != null) {
           // Get address from the session
           final sessionData = _appKitModal!.session!;
           final namespaces = sessionData.namespaces;
           final accounts = namespaces?['eip155']?.accounts ?? [];
 
-          if (accounts.isNotEmpty && !completer.isCompleted) {
+          if (accounts.isNotEmpty) {
             // Parse address from CAIP-10 format (e.g., 'eip155:1:0x123...')
             final address = accounts.first.split(':').last;
             _connectedAddress = address;
             timeoutTimer?.cancel();
+            checkTimer?.cancel();
+
+            // Close modal before completing to avoid UI blocking
+            try {
+              _appKitModal!.closeModal();
+            } catch (_) {
+              // Ignore errors when closing modal
+            }
+
             completer.complete(address);
           }
         }
       }
 
+      // Subscribe to connection events (temporary subscription for this connection attempt)
       _appKitModal!.onModalConnect.subscribe(onConnect);
 
-      timeoutTimer = Timer(const Duration(minutes: 2), () {
+      // Periodically check connection status (handles case where event doesn't fire)
+      checkTimer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (!completer.isCompleted) {
+          _checkExistingConnection();
+          if (_connectedAddress != null) {
+            onConnect(null);
+          }
+        }
+      });
+
+      // Set timeout to 90 seconds (increased from 2 minutes to match reasonable user wait time)
+      timeoutTimer = Timer(const Duration(seconds: 90), () {
+        if (!completer.isCompleted) {
+          checkTimer?.cancel();
           _appKitModal!.onModalConnect.unsubscribe(onConnect);
+
+          // Close modal on timeout
+          try {
+            _appKitModal!.closeModal();
+          } catch (_) {
+            // Ignore errors when closing modal
+          }
+
           completer.completeError(
             TimeoutException('Wallet connection timed out'),
           );

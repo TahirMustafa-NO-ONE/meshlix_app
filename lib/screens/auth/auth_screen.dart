@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -26,6 +27,7 @@ class _AuthScreenState extends State<AuthScreen> with WidgetsBindingObserver {
   bool _isEmailLoading = false;
   bool _isGoogleLoading = false;
   bool _isWalletLoading = false;
+  bool _isWalletConnecting = false;
 
   bool get _anyLoading =>
       _isEmailLoading || _isGoogleLoading || _isWalletLoading;
@@ -34,6 +36,22 @@ class _AuthScreenState extends State<AuthScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _checkWalletConnectionOnStart();
+  }
+
+  /// Check if wallet is already connected on app start
+  Future<void> _checkWalletConnectionOnStart() async {
+    try {
+      if (AuthService.instance.isAuthenticated) {
+        // User is already authenticated, navigate to home
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _navigateToHome();
+        });
+      }
+    } catch (e) {
+      // Ignore errors during startup check
+      debugPrint('[AuthScreen] Startup wallet check failed: $e');
+    }
   }
 
   @override
@@ -43,12 +61,42 @@ class _AuthScreenState extends State<AuthScreen> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  /// Android: when the Chrome Custom Tab is closed by the user, trigger the
-  /// UserCancelledException so the loading state is cleared correctly.
+  /// Handle app lifecycle changes:
+  /// - Android: Clear Web3Auth custom tabs when resumed
+  /// - All platforms: Check wallet connection when returning from MetaMask
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && Platform.isAndroid) {
-      Web3AuthFlutter.setCustomTabsClosed();
+    if (state == AppLifecycleState.resumed) {
+      if (Platform.isAndroid) {
+        Web3AuthFlutter.setCustomTabsClosed();
+      }
+
+      // If wallet connection was in progress, check if it completed while app was in background
+      if (_isWalletConnecting) {
+        _checkWalletConnectionAfterResume();
+      }
+    }
+  }
+
+  /// Check wallet connection status after app resumes from background
+  Future<void> _checkWalletConnectionAfterResume() async {
+    // Wait a moment for the wallet connection state to update
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    if (!mounted || !_isWalletConnecting) return;
+
+    try {
+      // Check if wallet is now connected
+      if (AuthService.instance.isAuthenticated) {
+        // Connection succeeded while in background
+        setState(() {
+          _isWalletLoading = false;
+          _isWalletConnecting = false;
+        });
+        _navigateToHome();
+      }
+    } catch (e) {
+      debugPrint('[AuthScreen] Resume wallet check error: $e');
     }
   }
 
@@ -84,19 +132,57 @@ class _AuthScreenState extends State<AuthScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _handleWalletConnect() async {
-    final walletId = await WalletConnectSheet.show(context);
-    if (walletId == null || !mounted) return;
+    // First, show the wallet selection sheet
+    final selectedWallet = await WalletConnectSheet.show(context);
 
-    setState(() => _isWalletLoading = true);
+    // User dismissed the sheet without selecting a wallet
+    if (selectedWallet == null) return;
+
+    setState(() {
+      _isWalletLoading = true;
+      _isWalletConnecting = true;
+    });
+
     try {
-      await AuthService.instance.signInWithWallet(context);
-      if (mounted) _navigateToHome();
+      // Pass the selected wallet ID to avoid showing the Reown modal
+      // For 'metamask': direct connection to MetaMask
+      // For 'walletconnect': show the Reown modal with QR code
+      await AuthService.instance.signInWithWallet(
+        context,
+        walletId: selectedWallet,
+      );
+
+      if (mounted) {
+        setState(() {
+          _isWalletLoading = false;
+          _isWalletConnecting = false;
+        });
+        _navigateToHome();
+      }
     } on UnimplementedError catch (e) {
-      if (mounted) _showSnack(e.message ?? 'Wallet connection not set up yet.');
+      if (mounted) {
+        setState(() {
+          _isWalletLoading = false;
+          _isWalletConnecting = false;
+        });
+        _showSnack(e.message ?? 'Wallet connection not set up yet.');
+      }
     } catch (e) {
-      if (mounted) _showSnack('Wallet connection failed: $e');
-    } finally {
-      if (mounted) setState(() => _isWalletLoading = false);
+      if (mounted) {
+        setState(() {
+          _isWalletLoading = false;
+          _isWalletConnecting = false;
+        });
+        final errorMessage = e.toString();
+        if (errorMessage.contains('timed out') ||
+            errorMessage.contains('timeout')) {
+          _showSnack(
+            'Connection timed out. Please ensure you approved the connection in your wallet.',
+          );
+        } else {
+          _showSnack('Wallet connection failed: $e');
+        }
+      }
     }
   }
 
@@ -201,7 +287,7 @@ class _AuthScreenState extends State<AuthScreen> with WidgetsBindingObserver {
                     // ── Google button ───────────────────────────────────
                     _AuthProviderButton(
                       icon: FontAwesomeIcons.google,
-                      iconColor: const Color(0xFFEA4335),
+                      iconColor: AppColors.primaryAccent,
                       label: 'Continue with Google',
                       isLoading: _isGoogleLoading,
                       onPressed: _anyLoading ? null : _handleGoogleAuth,

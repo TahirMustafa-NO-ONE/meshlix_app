@@ -123,38 +123,15 @@ class AuthService {
   /// Connect an external Web3 wallet (MetaMask, Trust Wallet, Rainbow, etc.)
   ///
   /// Uses Reown AppKit (WalletConnect v2) to establish connection with the wallet app.
+  /// [walletId] optional specific wallet to connect to (e.g., 'metamask', 'walletconnect')
   /// Returns an [AuthUser] with the connected wallet address.
-  Future<AuthUser> signInWithWallet(dynamic context) async {
+  Future<AuthUser> signInWithWallet(
+    dynamic context, {
+    String? walletId,
+  }) async {
     try {
-      // Ensure WalletConnect is initialized
-      if (!WalletConnectService.instance.isConnected) {
-        // Connect to the wallet
-        final address = await WalletConnectService.instance.connectWallet(
-          context,
-        );
-
-        // Create a challenge message for the user to sign
-        final timestamp = DateTime.now().millisecondsSinceEpoch;
-        final challengeMessage =
-            'Sign this message to authenticate with Meshlix.\n\n'
-            'Timestamp: $timestamp\n'
-            'Wallet: $address';
-
-        // Request signature to prove ownership
-        await WalletConnectService.instance.signMessage(challengeMessage);
-
-        // Create and return an AuthUser with the connected wallet address
-        final username =
-            'user_${address.substring(2, 6)}${address.substring(address.length - 4)}';
-        _currentUser = AuthUser(
-          publicAddress: address,
-          username: username,
-          name: 'External Wallet',
-          provider: AuthProvider.externalWallet,
-        );
-
-        return _currentUser!;
-      } else {
+      // Check if already connected
+      if (WalletConnectService.instance.isConnected) {
         // Already connected, use existing address
         final address = WalletConnectService.instance.connectedAddress!;
         final username =
@@ -165,8 +142,51 @@ class AuthService {
           name: 'External Wallet',
           provider: AuthProvider.externalWallet,
         );
+        debugPrint(
+          '[AuthService] Using existing wallet connection: $address',
+        );
         return _currentUser!;
       }
+
+      // Connect to the wallet (pass walletId to avoid showing modal for specific wallets)
+      final address = await WalletConnectService.instance.connectWallet(
+        context,
+        walletId: walletId,
+      );
+
+      // Create a challenge message for the user to sign
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final challengeMessage =
+          'Sign this message to authenticate with Meshlix.\n\n'
+          'Timestamp: $timestamp\n'
+          'Wallet: $address';
+
+      // Request signature to prove ownership
+      // This is optional - if user rejects, we still create the account
+      String? signature;
+      try {
+        signature = await WalletConnectService.instance.signMessage(
+          challengeMessage,
+        );
+        debugPrint('[AuthService] Message signed successfully');
+      } catch (signError) {
+        // User might have rejected the signature request
+        // We still proceed with wallet connection but log the error
+        debugPrint('[AuthService] Signature request failed: $signError');
+        // Continue without signature - wallet connection is still valid
+      }
+
+      // Create and return an AuthUser with the connected wallet address
+      final username =
+          'user_${address.substring(2, 6)}${address.substring(address.length - 4)}';
+      _currentUser = AuthUser(
+        publicAddress: address,
+        username: username,
+        name: 'External Wallet',
+        provider: AuthProvider.externalWallet,
+      );
+
+      return _currentUser!;
     } on Object catch (e) {
       debugPrint('[AuthService] External wallet sign-in failed: $e');
       rethrow;
@@ -178,8 +198,32 @@ class AuthService {
   // ─────────────────────────────────────────────────────────────────────────
 
   Future<void> signOut() async {
-    await Web3AuthFlutter.logout();
-    _currentUser = null;
+    try {
+      // Check which provider the user used to sign in
+      if (_currentUser?.provider == AuthProvider.externalWallet) {
+        // User signed in with external wallet (MetaMask, Trust Wallet, etc.)
+        // Disconnect from WalletConnect
+        await WalletConnectService.instance.disconnect();
+        debugPrint('[AuthService] External wallet disconnected');
+      } else {
+        // User signed in with Web3Auth (email, Google, or Web3Auth wallet)
+        // Only call Web3AuthFlutter.logout() if there's an active Web3Auth session
+        try {
+          await Web3AuthFlutter.logout();
+          debugPrint('[AuthService] Web3Auth session logged out');
+        } catch (e) {
+          // If logout fails (e.g., no active session), log and continue
+          debugPrint('[AuthService] Web3Auth logout failed: $e');
+          // Still proceed to clear current user
+        }
+      }
+    } catch (e) {
+      // Log any errors but don't throw - we still want to clear the user state
+      debugPrint('[AuthService] Sign out error: $e');
+    } finally {
+      // Always clear the current user, regardless of errors
+      _currentUser = null;
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────

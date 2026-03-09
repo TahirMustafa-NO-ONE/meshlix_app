@@ -32,30 +32,6 @@ const _wallets = [
     iconColor: Color(0xFFE2761B),
     tileColor: Color(0xFF1A1200),
   ),
-  _WalletOption(
-    id: 'trust',
-    name: 'Trust Wallet',
-    description: 'Multi-chain wallet & DApps browser',
-    icon: FontAwesomeIcons.shieldHalved,
-    iconColor: Color(0xFF3375BB),
-    tileColor: Color(0xFF001020),
-  ),
-  _WalletOption(
-    id: 'rainbow',
-    name: 'Rainbow',
-    description: 'Fun & friendly Ethereum wallet',
-    icon: FontAwesomeIcons.circleHalfStroke,
-    iconColor: Color(0xFF7A44F0),
-    tileColor: Color(0xFF0E0020),
-  ),
-  _WalletOption(
-    id: 'coinbase',
-    name: 'Coinbase Wallet',
-    description: 'Self-custody wallet by Coinbase',
-    icon: FontAwesomeIcons.coins,
-    iconColor: Color(0xFF1652F0),
-    tileColor: Color(0xFF000B1E),
-  ),
 ];
 
 // ─── Bottom Sheet ────────────────────────────────────────────────────────────
@@ -91,9 +67,9 @@ class WalletConnectSheet extends StatelessWidget {
         color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         border: Border(
-          top: BorderSide(color: AppColors.primaryAccent, width: 1.5),
           left: BorderSide(color: AppColors.border, width: 0.5),
           right: BorderSide(color: AppColors.border, width: 0.5),
+          bottom: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
       child: SafeArea(
@@ -101,6 +77,8 @@ class WalletConnectSheet extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Top accent line
+            Container(height: 1.5, color: AppColors.primaryAccent),
             // ── Drag handle ──────────────────────────────────────────────
             Center(
               child: Container(
