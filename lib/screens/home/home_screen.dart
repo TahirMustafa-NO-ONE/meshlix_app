@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/auth/auth_service.dart';
 import '../../services/auth/auth_user.dart';
-import '../../services/storage/user_storage.dart';
 import '../../theme/app_colors.dart';
 import '../auth/auth_screen.dart';
 
@@ -14,41 +13,53 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  List<AuthUser> _allUsers = [];
-  bool _isLoading = true;
+  final TextEditingController _walletAddressController =
+      TextEditingController();
+  bool _isSendingRequest = false;
 
   @override
-  void initState() {
-    super.initState();
-    _loadUsers();
-  }
-
-  Future<void> _loadUsers() async {
-    setState(() => _isLoading = true);
-    try {
-      final users = await UserStorage.instance.getAllUsers();
-      setState(() {
-        _allUsers = users;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading users: $e')));
-      }
-    }
+  void dispose() {
+    _walletAddressController.dispose();
+    super.dispose();
   }
 
   Future<void> _handleSignOut() async {
     await AuthService.instance.signOut();
     if (mounted) {
-      // Use pushAndRemoveUntil to clear all previous routes from the stack
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const AuthScreen()),
-        (route) => false, // Remove all previous routes
+        (route) => false,
       );
+    }
+  }
+
+  Future<void> _handleSendChatRequest() async {
+    final address = _walletAddressController.text.trim();
+    if (address.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a wallet address')),
+      );
+      return;
+    }
+
+    setState(() => _isSendingRequest = true);
+    try {
+      // TODO: implement send chat request logic
+      await Future.delayed(const Duration(seconds: 1)); // placeholder
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Chat request sent to $address')),
+        );
+        _walletAddressController.clear();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error sending request: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSendingRequest = false);
     }
   }
 
@@ -77,12 +88,13 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Container(height: 2, color: AppColors.primaryAccent),
           ),
           SafeArea(
-            child: Column(
-              children: [
-                // ── Header ─────────────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Row(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Header ──────────────────────────────────────────
+                  Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Column(
@@ -117,12 +129,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 24),
 
-                // ── Current User Card ──────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                  child: Container(
+                  // ── Current User Card ────────────────────────────────
+                  Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -220,279 +230,120 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                   ),
-                ),
-                const SizedBox(height: 32),
+                  const SizedBox(height: 40),
+                  Container(height: 1, color: AppColors.border),
+                  const SizedBox(height: 40),
 
-                // ── All Users Section ──────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'All Contacts (${_allUsers.length})',
-                        style: GoogleFonts.rajdhani(
-                          color: AppColors.textPrimary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      TextButton.icon(
-                        onPressed: _loadUsers,
-                        icon: const Icon(
-                          Icons.refresh,
-                          size: 16,
-                          color: AppColors.primaryAccent,
-                        ),
-                        label: Text(
-                          'Refresh',
-                          style: GoogleFonts.rajdhani(
-                            color: AppColors.primaryAccent,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // ── Users List ─────────────────────────────────────────
-                Expanded(
-                  child: _isLoading
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors.primaryAccent,
-                          ),
-                        )
-                      : _allUsers.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.people_outline,
-                                size: 64,
-                                color: AppColors.textHint,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'No contacts yet',
-                                style: GoogleFonts.rajdhani(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : RefreshIndicator(
-                          onRefresh: _loadUsers,
-                          color: AppColors.primaryAccent,
-                          child: ListView.builder(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24.0,
-                              vertical: 8.0,
-                            ),
-                            itemCount: _allUsers.length,
-                            itemBuilder: (context, index) {
-                              final user = _allUsers[index];
-                              final isCurrentUser =
-                                  user.publicAddress ==
-                                  currentUser.publicAddress;
-
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 12.0),
-                                child: _UserCard(
-                                  user: user,
-                                  isCurrentUser: isCurrentUser,
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── User Card Widget ────────────────────────────────────────────────────────
-
-class _UserCard extends StatelessWidget {
-  final AuthUser user;
-  final bool isCurrentUser;
-
-  const _UserCard({required this.user, required this.isCurrentUser});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isCurrentUser
-            ? AppColors.primaryAccent.withValues(alpha: 0.1)
-            : AppColors.surfaceVariant,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isCurrentUser
-              ? AppColors.primaryAccent.withValues(alpha: 0.5)
-              : AppColors.border,
-        ),
-      ),
-      child: Row(
-        children: [
-          // Avatar
-          if (user.profileImage != null)
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isCurrentUser
-                      ? AppColors.primaryAccent
-                      : AppColors.textHint,
-                  width: 2,
-                ),
-                image: DecorationImage(
-                  image: NetworkImage(user.profileImage!),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            )
-          else
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isCurrentUser
-                    ? AppColors.primaryAccent.withValues(alpha: 0.2)
-                    : AppColors.textHint.withValues(alpha: 0.2),
-                border: Border.all(
-                  color: isCurrentUser
-                      ? AppColors.primaryAccent
-                      : AppColors.textHint,
-                  width: 2,
-                ),
-              ),
-              child: Center(
-                child: Text(
-                  user.displayName[0].toUpperCase(),
-                  style: GoogleFonts.orbitron(
-                    color: isCurrentUser
-                        ? AppColors.primaryAccent
-                        : AppColors.textHint,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        user.displayName,
-                        style: GoogleFonts.rajdhani(
-                          color: AppColors.textPrimary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (isCurrentUser)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryAccent.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          'ACTIVE',
-                          style: GoogleFonts.rajdhani(
-                            color: AppColors.primaryAccent,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                if (user.email != null)
+                  // ── New Chat Section ─────────────────────────────────
                   Text(
-                    user.email!,
+                    'Start a New Chat',
+                    style: GoogleFonts.rajdhani(
+                      color: AppColors.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Enter the recipient\'s wallet address to send a chat request.',
                     style: GoogleFonts.rajdhani(
                       color: AppColors.textSecondary,
                       fontSize: 13,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Icon(
-                      _getProviderIcon(user.provider),
-                      size: 12,
-                      color: AppColors.textHint,
+                  const SizedBox(height: 16),
+
+                  // Wallet Address Input
+                  TextField(
+                    controller: _walletAddressController,
+                    style: GoogleFonts.robotoMono(
+                      color: AppColors.textPrimary,
+                      fontSize: 14,
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      user.providerDisplayName,
-                      style: GoogleFonts.rajdhani(
+                    decoration: InputDecoration(
+                      hintText: '0x000...0000',
+                      hintStyle: GoogleFonts.robotoMono(
                         color: AppColors.textHint,
-                        fontSize: 12,
+                        fontSize: 14,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.account_balance_wallet_outlined,
+                        color: AppColors.textHint,
+                        size: 20,
+                      ),
+                      filled: true,
+                      fillColor: AppColors.surfaceVariant,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 16,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppColors.border),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppColors.border),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: AppColors.primaryAccent,
+                          width: 1.5,
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Text('•', style: TextStyle(color: AppColors.textHint)),
-                    const SizedBox(width: 8),
-                    Text(
-                      user.shortAddress,
-                      style: GoogleFonts.robotoMono(
-                        color: AppColors.textHint,
-                        fontSize: 11,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Send Chat Request Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed:
+                          _isSendingRequest ? null : _handleSendChatRequest,
+                      icon: _isSendingRequest
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.black,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.send_rounded,
+                              size: 18,
+                              color: Colors.black,
+                            ),
+                      label: Text(
+                        _isSendingRequest ? 'Sending...' : 'Send Chat Request',
+                        style: GoogleFonts.rajdhani(
+                          color: Colors.black,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryAccent,
+                        disabledBackgroundColor:
+                            AppColors.primaryAccent.withValues(alpha: 0.5),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
                       ),
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
           ),
         ],
       ),
     );
-  }
-
-  IconData _getProviderIcon(AuthProvider provider) {
-    switch (provider) {
-      case AuthProvider.google:
-        return Icons.g_mobiledata;
-      case AuthProvider.emailOTP:
-        return Icons.email_outlined;
-      case AuthProvider.wallet:
-      case AuthProvider.externalWallet:
-        return Icons.account_balance_wallet_outlined;
-      default:
-        return Icons.person_outline;
-    }
   }
 }
