@@ -111,7 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'P2P Chat • Contacts',
+                            'P2P Chat • Home',
                             style: GoogleFonts.rajdhani(
                               color: AppColors.textSecondary,
                               fontSize: 12,
