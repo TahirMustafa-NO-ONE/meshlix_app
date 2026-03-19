@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/auth/auth_service.dart';
-import '../../services/auth/auth_user.dart';
+// import '../../services/auth/auth_user.dart';
 import '../../theme/app_colors.dart';
 import '../auth/auth_screen.dart';
 
@@ -23,15 +23,15 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  Future<void> _handleSignOut() async {
-    await AuthService.instance.signOut();
-    if (mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const AuthScreen()),
-        (route) => false,
-      );
-    }
-  }
+  // Future<void> _handleSignOut() async {
+  //   await AuthService.instance.signOut();
+  //   if (mounted) {
+  //     Navigator.of(context).pushAndRemoveUntil(
+  //       MaterialPageRoute(builder: (_) => const AuthScreen()),
+  //       (route) => false,
+  //     );
+  //   }
+  // }
 
   Future<void> _handleSendChatRequest() async {
     final address = _walletAddressController.text.trim();
@@ -250,8 +250,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       letterSpacing: 0.5,
                     ),
                   ),
-                  const SizedBox(height: 40),
-                  Container(height: 1, color: AppColors.border),
                   const SizedBox(height: 8),
                   Text(
                     'Enter the recipient\'s wallet address to send a chat request.',
@@ -347,6 +345,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 40),
+                  Container(height: 1, color: AppColors.border),
                 ],
               ),
             ),
