@@ -84,7 +84,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         border: Border(
                           bottom: BorderSide(
                             color:
-                                AppColors.primaryAccent, // or AppColors.primaryAccent
+                                AppColors.primaryAccent,
                             width: 1,
                           ),
                         ),

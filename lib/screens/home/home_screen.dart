@@ -102,7 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     decoration: BoxDecoration(
                       border: Border(
                         bottom: BorderSide(
-                          color: AppColors.primaryAccent, // or AppColors.primaryAccent
+                          color: AppColors.primaryAccent,
                           width: 1,
                         ),
                       ),
