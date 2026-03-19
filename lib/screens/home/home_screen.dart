@@ -139,107 +139,106 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 24),
 
                   // ── Current User Card ────────────────────────────────
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          AppColors.primaryAccent.withValues(alpha: 0.15),
-                          AppColors.primaryAccent.withValues(alpha: 0.05),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: AppColors.primaryAccent.withValues(alpha: 0.3),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        // Profile Image/Avatar
-                        if (currentUser.profileImage != null)
-                          Container(
-                            width: 56,
-                            height: 56,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: AppColors.primaryAccent,
-                                width: 2,
-                              ),
-                              image: DecorationImage(
-                                image: NetworkImage(currentUser.profileImage!),
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          )
-                        else
-                          Container(
-                            width: 56,
-                            height: 56,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: AppColors.primaryAccent.withValues(
-                                alpha: 0.2,
-                              ),
-                              border: Border.all(
-                                color: AppColors.primaryAccent,
-                                width: 2,
-                              ),
-                            ),
-                            child: Center(
-                              child: Text(
-                                currentUser.displayName[0].toUpperCase(),
-                                style: GoogleFonts.orbitron(
-                                  color: AppColors.primaryAccent,
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Currently Signed In',
-                                style: GoogleFonts.rajdhani(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                currentUser.displayName,
-                                style: GoogleFonts.rajdhani(
-                                  color: AppColors.textPrimary,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                currentUser.providerDisplayName,
-                                style: GoogleFonts.rajdhani(
-                                  color: AppColors.primaryAccent,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-                  Container(height: 1, color: AppColors.border),
-                  const SizedBox(height: 40),
+                  // Container(
+                  //   width: double.infinity,
+                  //   padding: const EdgeInsets.all(20),
+                  //   decoration: BoxDecoration(
+                  //     gradient: LinearGradient(
+                  //       colors: [
+                  //         AppColors.primaryAccent.withValues(alpha: 0.15),
+                  //         AppColors.primaryAccent.withValues(alpha: 0.05),
+                  //       ],
+                  //       begin: Alignment.topLeft,
+                  //       end: Alignment.bottomRight,
+                  //     ),
+                  //     borderRadius: BorderRadius.circular(16),
+                  //     border: Border.all(
+                  //       color: AppColors.primaryAccent.withValues(alpha: 0.3),
+                  //     ),
+                  //   ),
+                  //   child: Row(
+                  //     children: [
+                  //       // Profile Image/Avatar
+                  //       if (currentUser.profileImage != null)
+                  //         Container(
+                  //           width: 56,
+                  //           height: 56,
+                  //           decoration: BoxDecoration(
+                  //             shape: BoxShape.circle,
+                  //             border: Border.all(
+                  //               color: AppColors.primaryAccent,
+                  //               width: 2,
+                  //             ),
+                  //             image: DecorationImage(
+                  //               image: NetworkImage(currentUser.profileImage!),
+                  //               fit: BoxFit.cover,
+                  //             ),
+                  //           ),
+                  //         )
+                  //       else
+                  //         Container(
+                  //           width: 56,
+                  //           height: 56,
+                  //           decoration: BoxDecoration(
+                  //             shape: BoxShape.circle,
+                  //             color: AppColors.primaryAccent.withValues(
+                  //               alpha: 0.2,
+                  //             ),
+                  //             border: Border.all(
+                  //               color: AppColors.primaryAccent,
+                  //               width: 2,
+                  //             ),
+                  //           ),
+                  //           child: Center(
+                  //             child: Text(
+                  //               currentUser.displayName[0].toUpperCase(),
+                  //               style: GoogleFonts.orbitron(
+                  //                 color: AppColors.primaryAccent,
+                  //                 fontSize: 24,
+                  //                 fontWeight: FontWeight.bold,
+                  //               ),
+                  //             ),
+                  //           ),
+                  //         ),
+                  //       const SizedBox(width: 16),
+                  //       Expanded(
+                  //         child: Column(
+                  //           crossAxisAlignment: CrossAxisAlignment.start,
+                  //           children: [
+                  //             Text(
+                  //               'Currently Signed In',
+                  //               style: GoogleFonts.rajdhani(
+                  //                 color: AppColors.textSecondary,
+                  //                 fontSize: 12,
+                  //               ),
+                  //             ),
+                  //             const SizedBox(height: 4),
+                  //             Text(
+                  //               currentUser.displayName,
+                  //               style: GoogleFonts.rajdhani(
+                  //                 color: AppColors.textPrimary,
+                  //                 fontSize: 18,
+                  //                 fontWeight: FontWeight.bold,
+                  //               ),
+                  //               maxLines: 1,
+                  //               overflow: TextOverflow.ellipsis,
+                  //             ),
+                  //             const SizedBox(height: 2),
+                  //             Text(
+                  //               currentUser.providerDisplayName,
+                  //               style: GoogleFonts.rajdhani(
+                  //                 color: AppColors.primaryAccent,
+                  //                 fontSize: 12,
+                  //               ),
+                  //             ),
+                  //           ],
+                  //         ),
+                  //       ),
+                  //     ],
+                  //   ),
+                  // ),
+                  // const SizedBox(height: 40),
+                  // const SizedBox(height: 40),
 
                   // ── New Chat Section ─────────────────────────────────
                   Text(
@@ -251,6 +250,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       letterSpacing: 0.5,
                     ),
                   ),
+                  const SizedBox(height: 40),
+                  Container(height: 1, color: AppColors.border),
                   const SizedBox(height: 8),
                   Text(
                     'Enter the recipient\'s wallet address to send a chat request.',
