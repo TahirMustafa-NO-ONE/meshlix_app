@@ -54,9 +54,9 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error sending request: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error sending request: $e')));
       }
     } finally {
       if (mounted) setState(() => _isSendingRequest = false);
@@ -94,40 +94,47 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // ── Header ──────────────────────────────────────────
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'MESHLIX',
-                            style: GoogleFonts.orbitron(
-                              color: AppColors.primaryAccent,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 3.0,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'P2P Chat • Home',
-                            style: GoogleFonts.rajdhani(
-                              color: AppColors.textSecondary,
-                              fontSize: 12,
-                              letterSpacing: 1.0,
-                            ),
-                          ),
-                        ],
+                  // ── Header ──────────────────────────────────────────
+                  Container(
+                    padding: const EdgeInsets.only(
+                      bottom: 12,
+                    ), // spacing above border
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                          color: AppColors.primaryAccent, // or AppColors.primaryAccent
+                          width: 1,
+                        ),
                       ),
-                      // IconButton(
-                      //   icon: const Icon(
-                      //     Icons.logout_rounded,
-                      //     color: AppColors.error,
-                      //   ),
-                      //   onPressed: _handleSignOut,
-                      // ),
-                    ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'MESHLIX',
+                              style: GoogleFonts.orbitron(
+                                color: AppColors.primaryAccent,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 3.0,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'P2P Chat • Home',
+                              style: GoogleFonts.rajdhani(
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 24),
 
@@ -301,8 +308,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed:
-                          _isSendingRequest ? null : _handleSendChatRequest,
+                      onPressed: _isSendingRequest
+                          ? null
+                          : _handleSendChatRequest,
                       icon: _isSendingRequest
                           ? const SizedBox(
                               width: 18,
@@ -328,8 +336,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryAccent,
-                        disabledBackgroundColor:
-                            AppColors.primaryAccent.withValues(alpha: 0.5),
+                        disabledBackgroundColor: AppColors.primaryAccent
+                            .withValues(alpha: 0.5),
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
