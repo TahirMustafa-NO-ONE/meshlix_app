@@ -77,41 +77,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ── Header ─────────────────────────────────────────────
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'MESHLIX',
-                              style: GoogleFonts.orbitron(
-                                color: AppColors.primaryAccent,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 3.0,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'P2P Chat • Profile',
-                              style: GoogleFonts.rajdhani(
-                                color: AppColors.textSecondary,
-                                fontSize: 12,
-                                letterSpacing: 1.0,
-                              ),
-                            ),
-                          ],
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.logout_rounded,
-                            color: AppColors.error,
+                    // ── Header ──────────────────────────────────────────
+                    Container(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(
+                            color:
+                                AppColors.primaryAccent, // or AppColors.primaryAccent
+                            width: 1,
                           ),
-                          onPressed: () => _handleSignOut(context),
                         ),
-                      ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'MESHLIX',
+                                style: GoogleFonts.orbitron(
+                                  color: AppColors.primaryAccent,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 3.0,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'P2P Chat • Profile',
+                                style: GoogleFonts.rajdhani(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 12,
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                            ],
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.logout_rounded,
+                              color: AppColors.error,
+                            ),
+                            onPressed: () => _handleSignOut(context),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 40),
 
@@ -332,7 +344,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: AppColors.error.withValues(alpha: 0.15),
+                                  color: AppColors.error.withValues(
+                                    alpha: 0.15,
+                                  ),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: const Icon(
@@ -405,7 +419,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                             CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            _isPrivateKeyVisible && _privateKey != null
+                                            _isPrivateKeyVisible &&
+                                                    _privateKey != null
                                                 ? _privateKey!
                                                 : '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••',
                                             style: GoogleFonts.robotoMono(
@@ -423,55 +438,78 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                             children: [
                                               // Toggle visibility button
                                               TextButton.icon(
-                                                onPressed: _togglePrivateKeyVisibility,
+                                                onPressed:
+                                                    _togglePrivateKeyVisibility,
                                                 icon: Icon(
                                                   _isPrivateKeyVisible
                                                       ? Icons.visibility_off
                                                       : Icons.visibility,
                                                   size: 16,
-                                                  color: AppColors.textSecondary,
+                                                  color:
+                                                      AppColors.textSecondary,
                                                 ),
                                                 label: Text(
-                                                  _isPrivateKeyVisible ? 'Hide' : 'Show',
+                                                  _isPrivateKeyVisible
+                                                      ? 'Hide'
+                                                      : 'Show',
                                                   style: GoogleFonts.rajdhani(
-                                                    color: AppColors.textSecondary,
+                                                    color:
+                                                        AppColors.textSecondary,
                                                     fontSize: 13,
                                                   ),
                                                 ),
                                                 style: TextButton.styleFrom(
-                                                  padding: const EdgeInsets.symmetric(
-                                                    horizontal: 12,
-                                                    vertical: 8,
-                                                  ),
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 12,
+                                                        vertical: 8,
+                                                      ),
                                                 ),
                                               ),
                                               const SizedBox(width: 8),
                                               // Copy button
-                                              if (_isPrivateKeyVisible && _privateKey != null)
+                                              if (_isPrivateKeyVisible &&
+                                                  _privateKey != null)
                                                 TextButton.icon(
                                                   onPressed: () {
                                                     Clipboard.setData(
-                                                      ClipboardData(text: _privateKey!),
+                                                      ClipboardData(
+                                                        text: _privateKey!,
+                                                      ),
                                                     );
-                                                    ScaffoldMessenger.of(context)
-                                                        .showSnackBar(
+                                                    ScaffoldMessenger.of(
+                                                      context,
+                                                    ).showSnackBar(
                                                       SnackBar(
                                                         content: Text(
                                                           'Private key copied to clipboard',
-                                                          style: GoogleFonts.rajdhani(
-                                                            color: AppColors.textPrimary,
-                                                          ),
+                                                          style:
+                                                              GoogleFonts.rajdhani(
+                                                                color: AppColors
+                                                                    .textPrimary,
+                                                              ),
                                                         ),
                                                         backgroundColor:
-                                                            const Color(0xFF3D1100),
-                                                        behavior: SnackBarBehavior.floating,
+                                                            const Color(
+                                                              0xFF3D1100,
+                                                            ),
+                                                        behavior:
+                                                            SnackBarBehavior
+                                                                .floating,
                                                         shape: RoundedRectangleBorder(
                                                           borderRadius:
-                                                              BorderRadius.circular(8),
+                                                              BorderRadius.circular(
+                                                                8,
+                                                              ),
                                                         ),
-                                                        margin: const EdgeInsets.all(16),
+                                                        margin:
+                                                            const EdgeInsets.all(
+                                                              16,
+                                                            ),
                                                         duration:
-                                                            const Duration(seconds: 2),
+                                                            const Duration(
+                                                              seconds: 2,
+                                                            ),
                                                       ),
                                                     );
                                                   },
@@ -488,10 +526,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                     ),
                                                   ),
                                                   style: TextButton.styleFrom(
-                                                    padding: const EdgeInsets.symmetric(
-                                                      horizontal: 12,
-                                                      vertical: 8,
-                                                    ),
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 12,
+                                                          vertical: 8,
+                                                        ),
                                                   ),
                                                 ),
                                             ],
