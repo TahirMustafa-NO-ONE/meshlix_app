@@ -120,13 +120,13 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ],
                       ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.logout_rounded,
-                          color: AppColors.error,
-                        ),
-                        onPressed: _handleSignOut,
-                      ),
+                      // IconButton(
+                      //   icon: const Icon(
+                      //     Icons.logout_rounded,
+                      //     color: AppColors.error,
+                      //   ),
+                      //   onPressed: _handleSignOut,
+                      // ),
                     ],
                   ),
                   const SizedBox(height: 24),
