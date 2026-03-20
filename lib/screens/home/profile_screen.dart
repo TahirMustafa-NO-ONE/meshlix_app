@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/auth/auth_service.dart';
 import '../../services/session/session_manager.dart';
+import '../../services/app_init_service.dart';
 import '../../theme/app_colors.dart';
 import '../auth/auth_screen.dart';
 
@@ -83,8 +84,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       decoration: BoxDecoration(
                         border: Border(
                           bottom: BorderSide(
-                            color:
-                                AppColors.primaryAccent,
+                            color: AppColors.primaryAccent,
                             width: 1,
                           ),
                         ),
@@ -710,7 +710,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _handleSignOut(BuildContext context) async {
+    // Dispose app services first (XMTP, DB, Sync)
+    await AppInitService.instance.dispose();
+
+    // Then sign out from auth
     await AuthService.instance.signOut();
+
     if (context.mounted) {
       // Use pushAndRemoveUntil to clear all previous routes from the stack
       Navigator.of(context).pushAndRemoveUntil(

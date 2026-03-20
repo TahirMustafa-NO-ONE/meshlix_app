@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/auth/auth_service.dart';
 import '../../services/session/session_manager.dart';
+import '../../services/app_init_service.dart';
 import '../../theme/app_colors.dart';
 import '../auth/auth_screen.dart';
 import '../home/main_navigation_screen.dart';
@@ -12,7 +13,8 @@ import '../home/main_navigation_screen.dart';
 /// 1. Show splash screen with logo and loading indicator
 /// 2. Check if SessionManager has a valid stored session
 /// 3. Check if AuthService successfully restored user from local storage
-/// 4. Route to HomeScreen if authenticated, AuthScreen otherwise
+/// 4. Initialize XMTP, DB, and Sync services for authenticated user
+/// 5. Route to HomeScreen if authenticated, AuthScreen otherwise
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -21,10 +23,18 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  String _statusText = 'Checking session...';
+
   @override
   void initState() {
     super.initState();
     _checkSessionAndNavigate();
+  }
+
+  void _updateStatus(String status) {
+    if (mounted) {
+      setState(() => _statusText = status);
+    }
   }
 
   /// Check if a valid session exists and navigate to appropriate screen
@@ -43,9 +53,12 @@ class _SplashScreenState extends State<SplashScreen> {
         // Check if AuthService successfully restored the user
         // This should be true if AuthService.initialize() successfully loaded from local storage
         if (AuthService.instance.isAuthenticated) {
-          debugPrint(
-            '[SplashScreen] Valid session found, user authenticated, navigating to home',
-          );
+          debugPrint('[SplashScreen] Valid session found, user authenticated');
+
+          // Initialize services for the authenticated user
+          _updateStatus('Initializing services...');
+          await AppInitService.instance.initializeFromSession();
+
           if (mounted) _navigateToHome();
         } else {
           // Session exists in storage but AuthService didn't restore properly
@@ -134,7 +147,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 const SizedBox(height: 16),
                 // Loading text
                 Text(
-                  'Checking session...',
+                  _statusText,
                   style: GoogleFonts.rajdhani(
                     color: AppColors.textHint,
                     fontSize: 13,

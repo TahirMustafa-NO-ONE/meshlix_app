@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/auth/auth_service.dart';
-// import '../../services/auth/auth_user.dart';
+import '../../controllers/chat_controller.dart';
 import '../../theme/app_colors.dart';
 import '../auth/auth_screen.dart';
+import '../chat/chat_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,6 +16,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _walletAddressController =
       TextEditingController();
+  final _chatController = ChatController.instance;
   bool _isSendingRequest = false;
 
   @override
@@ -22,16 +24,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _walletAddressController.dispose();
     super.dispose();
   }
-
-  // Future<void> _handleSignOut() async {
-  //   await AuthService.instance.signOut();
-  //   if (mounted) {
-  //     Navigator.of(context).pushAndRemoveUntil(
-  //       MaterialPageRoute(builder: (_) => const AuthScreen()),
-  //       (route) => false,
-  //     );
-  //   }
-  // }
 
   Future<void> _handleSendChatRequest() async {
     final address = _walletAddressController.text.trim();
@@ -42,21 +34,59 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
+    // Validate Ethereum address format
+    if (!address.startsWith('0x') || address.length != 42) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid Ethereum address (0x...)'),
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSendingRequest = true);
     try {
-      // TODO: implement send chat request logic
-      await Future.delayed(const Duration(seconds: 1)); // placeholder
+      // Check if the address can receive XMTP messages
+      final canMessage = await _chatController.canMessage(address);
+      if (!canMessage) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$address is not on XMTP network yet'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Create or get conversation
+      final conversation = await _chatController.getOrCreateConversation(
+        address,
+      );
+      if (conversation == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to create conversation')),
+          );
+        }
+        return;
+      }
+
+      // Navigate to chat screen
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Chat request sent to $address')),
-        );
         _walletAddressController.clear();
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ChatScreen(conversation: conversation),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error sending request: $e')));
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
       if (mounted) setState(() => _isSendingRequest = false);

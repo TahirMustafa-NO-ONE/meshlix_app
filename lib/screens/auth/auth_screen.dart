@@ -7,6 +7,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:web3auth_flutter/input.dart';
 import 'package:web3auth_flutter/web3auth_flutter.dart';
 import '../../services/auth/auth_service.dart';
+import '../../services/app_init_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/auth/custom_text_field.dart';
 import '../../widgets/auth/primary_button.dart';
@@ -175,9 +176,28 @@ class _AuthScreenState extends State<AuthScreen> with WidgetsBindingObserver {
   }
 
   void _navigateToHome() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
-    );
+    // Initialize services for the authenticated user before navigating
+    _initializeServicesAndNavigate();
+  }
+
+  Future<void> _initializeServicesAndNavigate() async {
+    try {
+      final currentUser = AuthService.instance.currentUser;
+      if (currentUser != null) {
+        await AppInitService.instance.initializeForUser(
+          currentUser.publicAddress,
+        );
+      }
+    } catch (e) {
+      debugPrint('[AuthScreen] Service initialization failed: $e');
+      // Continue to home even if services fail - they can be initialized later
+    }
+
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+      );
+    }
   }
 
   void _showSnack(String message, {bool success = false}) {

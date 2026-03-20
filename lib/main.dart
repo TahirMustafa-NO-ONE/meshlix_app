@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'services/auth/auth_service.dart';
 import 'services/storage/user_storage.dart';
 import 'services/session/session_manager.dart';
+import 'db/db_service.dart';
 import 'theme/app_theme.dart';
 import 'screens/splash/splash_screen.dart';
 
@@ -12,6 +13,9 @@ Future<void> main() async {
 
   // Load environment variables from .env file
   await dotenv.load(fileName: ".env");
+
+  // Initialize Hive for local database BEFORE runApp
+  await DbService.initializeHive();
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
