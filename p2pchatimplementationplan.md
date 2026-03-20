@@ -1,409 +1,371 @@
-I couldn’t fully crawl your exact repo (GitHub didn’t return it in search), but based on your description + typical Flutter architecture + Web3Auth + XMTP stack, I’ll give you a **complete, production-level plan** to add **P2P chat (XMTP) + local storage + contacts system**.
+Perfect — now I’ll give you a **fully redefined, production-level plan** that includes:
 
-This is exactly how you should structure your app going forward.
+✅ XMTP (transport)
+✅ Local DB (offline-first)
+✅ **Multi-user separation (CRITICAL)**
+✅ Secure key handling
+✅ Real sync engine
 
----
-
-# 🧠 1. Your Current Stack (What You Already Have)
-
-You said:
-
-* ✅ Flutter app
-* ✅ Web3Auth Flutter SDK integrated
-* ❗ No chat system yet
-
-👉 Important:
-Web3Auth gives you **private key + wallet address** after login ([Web3Auth][1])
-
-That is PERFECT because:
-
-👉 XMTP works using **wallet addresses as identity** ([Alchemy][2])
+This is your **final architecture blueprint** — follow this exactly.
 
 ---
 
-# 🧱 2. Target Architecture (Final System)
+# 🧠 0. CORE PRINCIPLE (FINAL UNDERSTANDING)
 
-Here’s what you’re building:
+From XMTP docs:
 
+> Production apps must include a **local cache** ([Dart packages][1])
+
+So your system is:
+
+```text
+XMTP → Sync Engine → Local DB → UI
 ```
+
+---
+
+# 🧱 1. FINAL ARCHITECTURE (WITH MULTI-USER SUPPORT)
+
+```text
 [ Web3Auth Login ]
         ↓
-[ Private Key ]
+[ Wallet Address ]
         ↓
-[ XMTP Client (per user) ]
+[ Load XMTP Keys (per user) ]
         ↓
-[ Conversations (P2P) ]
+[ XMTP Client ]
         ↓
-[ Local DB (Hive/SQLite) ]
+[ Open User-Specific Local DB ]
         ↓
-[ UI (Chats + Contacts) ]
+[ Sync XMTP → Local DB ]
+        ↓
+[ UI (Chat / Contacts) ]
 ```
 
 ---
 
-# 🔌 3. Core Tech You Must Add
+# 🔥 2. MOST IMPORTANT RULE (NEW)
 
-### 1. XMTP SDK
+## ✅ EVERYTHING MUST BE USER-SCOPED
+
+You must isolate:
+
+| Data          | Scope      |
+| ------------- | ---------- |
+| Messages      | per wallet |
+| Conversations | per wallet |
+| Contacts      | per wallet |
+| XMTP keys     | per wallet |
+| Database      | per wallet |
+
+---
+
+# 💾 3. LOCAL DATABASE DESIGN (FINAL)
 
 Use:
 
-* xmtp-flutter
-
-👉 It allows:
-
-* Send/receive messages
-* Fetch conversations
-* Stream real-time messages ([Dart packages][3])
+* Hive (fast, simple) OR Isar (advanced)
+  👉 Hive is great for your case ([Medium][2])
 
 ---
 
-### 2. Local Storage (VERY IMPORTANT)
-
-Use one:
-
-* Hive (recommended)
-* Drift (SQLite)
-* Isar (fastest)
-
-👉 Why?
-Because XMTP is decentralized, but:
-
-* You STILL need local cache
-* Chat history UX depends on it
+## 🔥 DATABASE PER USER (MANDATORY)
 
 ---
 
-# ⚙️ 4. Step-by-Step Implementation Plan
-
----
-
-## 🔹 STEP 1: Extract Wallet from Web3Auth
-
-After login:
+### ✅ Correct Way
 
 ```dart
-final privateKey = await Web3AuthFlutter.getPrivKey();
-final credentials = EthPrivateKey.fromHex(privateKey);
-final address = credentials.address.hex;
-```
-
-👉 This `privateKey` will initialize XMTP
-
----
-
-## 🔹 STEP 2: Initialize XMTP Client
-
-```dart
-final client = await XMTP.createFromPrivateKey(privateKey);
-```
-
-Now you have:
-
-* identity = wallet address
-* messaging capability
-
----
-
-## 🔹 STEP 3: Load Conversations
-
-```dart
-final conversations = await client.listConversations();
-```
-
-👉 XMTP gives:
-
-* all chats (cross-app inbox concept) ([Dart packages][3])
-
----
-
-## 🔹 STEP 4: Listen for New Messages (REAL-TIME)
-
-```dart
-client.streamMessages().listen((message) {
-  // handle incoming message
-});
-```
-
----
-
-## 🔹 STEP 5: Send Message
-
-```dart
-await client.sendMessage(conversation, "Hello");
-```
-
----
-
-# 💾 5. LOCAL STORAGE DESIGN (IMPORTANT)
-
-You said:
-
-> chat history should store on local device (including contacts)
-
-Perfect — design like this:
-
----
-
-## 📁 Tables / Boxes
-
-### 🧑 Contacts
-
-```
-id (wallet address)
-name (optional)
-lastMessage
-lastSeen
-```
-
----
-
-### 💬 Messages
-
-```
-id
-conversationId
-sender
-receiver
-content
-timestamp
-status (sent/delivered/read)
-```
-
----
-
-### 💬 Conversations
-
-```
-id
-peerAddress
-lastMessage
-updatedAt
-```
-
----
-
-## 🔄 Flow
-
-1. XMTP fetch → save to local DB
-2. UI reads ONLY from local DB
-3. Background sync updates DB
-
-👉 This is how WhatsApp/Telegram work
-
----
-
-# 🧑‍🤝‍🧑 6. CONTACT SYSTEM (IMPORTANT)
-
-XMTP doesn’t give “contacts list” directly.
-
-So YOU build it:
-
----
-
-## Strategy:
-
-### Option A (Simple)
-
-* Add contact when:
-
-  * user sends message OR
-  * receives message
-
----
-
-### Option B (Advanced)
-
-* Maintain your own contacts DB
-* Add username mapping (optional backend)
-
----
-
-### Contact Creation Example:
-
-```dart
-if (!contactExists(peerAddress)) {
-  saveContact(peerAddress);
+initDB(String walletAddress) async {
+  await Hive.openBox('messages_$walletAddress');
+  await Hive.openBox('contacts_$walletAddress');
+  await Hive.openBox('conversations_$walletAddress');
 }
 ```
 
 ---
 
-# 🔄 7. SYNC STRATEGY (CRITICAL)
-
-You need 3 layers:
-
----
-
-## 🟢 On App Start
-
-* init XMTP
-* fetch conversations
-* store locally
-
----
-
-## 🟡 Background Sync
-
-* listen to:
+### ❌ Wrong Way
 
 ```dart
-client.streamConversations()
-client.streamMessages()
+Hive.openBox('messages'); // ❌ shared for all users
 ```
 
 ---
 
-## 🔴 Offline Support
+# 🔐 4. XMTP KEY MANAGEMENT (PER USER)
 
-* user reads local DB
-* messages sync when online
-
----
-
-# 🔐 8. SECURITY MODEL
-
-Good news:
-
-XMTP already gives:
-
-* ✅ End-to-end encryption
-* ✅ Wallet-based identity
-* ✅ No central server
-
-([XMTP][4])
+XMTP creates identity keys on first login ([Dart packages][1])
 
 ---
 
-# 🧩 9. UI STRUCTURE (Flutter)
-
----
-
-## Screens:
-
-### 1. Chat List Screen
-
-* List of conversations (from local DB)
-
----
-
-### 2. Chat Screen
-
-* Messages (local DB)
-* Send button → XMTP
-
----
-
-### 3. Contacts Screen
-
-* All interacted wallets
-
----
-
----
-
-# 🚀 10. COMPLETE DEVELOPMENT ROADMAP
-
----
-
-## 🔥 Phase 1 – Core Setup
-
-* [ ] Web3Auth login working
-* [ ] Extract private key
-* [ ] Initialize XMTP
-
----
-
-## 🔥 Phase 2 – Messaging MVP
-
-* [ ] Send message
-* [ ] Receive message
-* [ ] List conversations
-
----
-
-## 🔥 Phase 3 – Local Storage
-
-* [ ] Setup Hive/Drift
-* [ ] Cache conversations
-* [ ] Cache messages
-
----
-
-## 🔥 Phase 4 – UI
-
-* [ ] Chat list screen
-* [ ] Chat detail screen
-* [ ] Auto-scroll + timestamps
-
----
-
-## 🔥 Phase 5 – Contacts
-
-* [ ] Save peer addresses
-* [ ] Show chat history per contact
-
----
-
-## 🔥 Phase 6 – Realtime + Sync
-
-* [ ] streamMessages
-* [ ] background updates
-* [ ] offline mode
-
----
-
-## 🔥 Phase 7 – Advanced Features
-
-* [ ] typing indicator
-* [ ] read receipts
-* [ ] media messages
-* [ ] push notifications
-
----
-
-# ⚠️ 11. IMPORTANT CHALLENGES (You MUST Handle)
-
----
-
-### ❗ 1. Wallet-first UX problem
-
-Users don’t know wallet addresses
-
-👉 Solution:
-
-* username mapping (optional backend)
-
----
-
-### ❗ 2. First message issue
-
-XMTP requires recipient to be XMTP-enabled
-
-👉 check:
+## ✅ Store like this:
 
 ```dart
-client.canMessage(address)
+final key = "xmtp_keys_$walletAddress";
+
+await secureStorage.write(
+  key: key,
+  value: encodedKeys,
+);
 ```
 
 ---
 
-### ❗ 3. No server = no backup
+## ✅ Load like this:
 
-👉 local DB is your only history
+```dart
+final keys = await secureStorage.read(
+  key: "xmtp_keys_$walletAddress",
+);
+```
 
 ---
 
-# 🧠 12. Suggested Folder Structure
+👉 This ensures:
 
+* each user = different identity
+* instant login switching
+
+---
+
+# ⚙️ 5. COMPLETE SYSTEM MODULES
+
+---
+
+## 🔹 1. Auth Service
+
+Handles:
+
+* login via Web3Auth
+* returns:
+
+  * privateKey
+  * walletAddress
+
+---
+
+## 🔹 2. XMTP Service
+
+Handles:
+
+* init client
+* send messages
+* receive messages (stream)
+
+---
+
+## 🔹 3. DB Service (USER-SCOPED)
+
+Handles:
+
+* open DB per wallet
+* CRUD operations
+
+---
+
+## 🔹 4. Sync Service (CORE LOGIC)
+
+Handles:
+
+* initial sync
+* realtime updates
+* deduplication
+
+---
+
+# 🔄 6. DATA FLOW (FINAL)
+
+---
+
+## 🟢 APP START
+
+```dart
+login();
+
+initXMTP(wallet);
+openDB(wallet);
+
+loadLocalData();   // instant UI
+syncFromXMTP();    // background
 ```
+
+---
+
+## 🟡 RECEIVE MESSAGE
+
+```dart
+XMTP stream → save to user DB → UI updates
+```
+
+---
+
+## 🔴 SEND MESSAGE
+
+```dart
+save locally (isSynced=false)
+→ send via XMTP
+→ update status
+```
+
+---
+
+## 📴 OFFLINE
+
+* read from DB
+* queue messages
+
+---
+
+## 🌐 ONLINE
+
+* send pending
+* sync new messages
+
+---
+
+# 🔄 7. SYNC ENGINE (REAL IMPLEMENTATION)
+
+---
+
+## 🔹 Initial Sync
+
+```dart
+final conversations = await client.listConversations();
+
+for (var convo in conversations) {
+  final messages = await convo.messages();
+
+  for (var msg in messages) {
+    if (!exists(msg.id)) {
+      saveToDB(msg);
+    }
+  }
+}
+```
+
+---
+
+## 🔹 Realtime Listener
+
+```dart
+client.streamMessages().listen((msg) {
+  if (!exists(msg.id)) {
+    saveToDB(msg);
+  }
+});
+```
+
+---
+
+## 🔹 Deduplication
+
+```dart
+message.id
+```
+
+---
+
+# 🧑‍🤝‍🧑 8. CONTACT SYSTEM (USER-SCOPED)
+
+---
+
+## Auto-create contact
+
+```dart
+onMessage(peerAddress) {
+  upsertContact(peerAddress);
+}
+```
+
+---
+
+## Stored per user:
+
+```text
+contacts_<walletAddress>
+```
+
+---
+
+# 🔐 9. SECURITY (IMPORTANT)
+
+---
+
+## Store securely:
+
+* XMTP keys → secure storage
+* DB → encrypted if needed
+
+👉 Sensitive data should NOT be stored in plain storage ([Medium][3])
+
+---
+
+# 🔄 10. LOGIN / LOGOUT FLOW (CRITICAL)
+
+---
+
+## ✅ On Login
+
+```dart
+await xmtpService.init(privateKey);
+await dbService.init(walletAddress);
+```
+
+---
+
+## ✅ On Logout
+
+```dart
+await dbService.close();
+```
+
+---
+
+## ❌ DO NOT DELETE DATA
+
+👉 Keep per-user DB intact
+
+---
+
+## ✅ On Next Login (different user)
+
+```dart
+await dbService.init(newWallet);
+```
+
+👉 New DB automatically used
+
+---
+
+# 🧠 11. STORAGE CHOICE GUIDE
+
+---
+
+## Use:
+
+| Storage           | Use case        |
+| ----------------- | --------------- |
+| Hive              | messages, chats |
+| Secure Storage    | XMTP keys       |
+| SharedPreferences | flags only      |
+
+👉 SharedPreferences is only for small data ([FlutterCentral][4])
+
+---
+
+# 🧩 12. FINAL FOLDER STRUCTURE
+
+```text
 lib/
  ├── services/
  │     ├── auth_service.dart
  │     ├── xmtp_service.dart
+ │     ├── sync_service.dart
  │
  ├── db/
- │     ├── message_model.dart
- │     ├── contact_model.dart
+ │     ├── db_service.dart
+ │     ├── models/
  │
  ├── controllers/
  │     ├── chat_controller.dart
@@ -411,35 +373,86 @@ lib/
  ├── screens/
  │     ├── chat_list.dart
  │     ├── chat_screen.dart
- │
- ├── widgets/
+ │     ├── contacts.dart
 ```
 
 ---
 
-# ✅ FINAL SUMMARY
-
-You are building:
-
-* Web3Auth → identity
-* XMTP → messaging layer
-* Local DB → chat history + contacts
-
-👉 This is exactly how decentralized chat apps (like Coinbase Wallet chat) work.
+# 🚀 13. IMPLEMENTATION ROADMAP (FINAL)
 
 ---
 
-# 💬 If you want next step
+## 🔥 Phase 1 (NOW)
 
-I can:
+* [ ] XMTP init working
+* [ ] send + receive message
 
-* Review your actual repo structure (paste files here)
-* Write **complete XMTP service class**
-* Give you **ready-to-use Flutter chat UI + logic**
+---
 
-Just tell me 👍
+## 🔥 Phase 2
 
-[1]: https://web3auth.io/docs/connect-blockchain/evm/xpla/flutter?utm_source=chatgpt.com "Integrate Web3Auth with the XPLA Blockchain in Flutter | Web3Auth"
-[2]: https://www.alchemy.com/dapps/xmtp?utm_source=chatgpt.com "XMTP - Infrastructure Tools - Alchemy"
-[3]: https://pub.dev/documentation/xmtp/latest/index.html?utm_source=chatgpt.com "xmtp - Dart API docs"
-[4]: https://xmtp.org/buildinchat?utm_source=chatgpt.com "Build agents and mini apps on XMTP"
+* [ ] store XMTP keys per user
+* [ ] reload without wallet
+
+---
+
+## 🔥 Phase 3
+
+* [ ] user-specific DB
+* [ ] store messages
+
+---
+
+## 🔥 Phase 4
+
+* [ ] sync engine
+* [ ] realtime updates
+
+---
+
+## 🔥 Phase 5
+
+* [ ] chat UI
+* [ ] contacts UI
+
+---
+
+## 🔥 Phase 6
+
+* [ ] offline queue
+* [ ] retry sending
+
+---
+
+# 🧠 FINAL MINDSET
+
+You are building:
+
+✅ decentralized identity (wallet)
+✅ decentralized transport (XMTP)
+✅ centralized UX (local DB per user)
+
+👉 This is exactly how modern web3 chat apps are built.
+
+---
+
+# 💬 NEXT STEP (IMPORTANT)
+
+Now you are ready to **start real coding properly**
+
+Tell me:
+
+👉 **“build step 1 (xmtp + multi-user setup)”**
+
+and I will give you:
+
+✅ production-ready `xmtp_service.dart`
+✅ multi-user DB setup code
+✅ working sync logic
+
+Step-by-step 🚀
+
+[1]: https://pub.dev/packages/xmtp/versions/1.3.0?utm_source=chatgpt.com "xmtp 1.3.0 | Flutter package"
+[2]: https://kalanaheshan.medium.com/hive-the-lightning-fast-local-storage-solution-for-flutter-apps-5d37803334c0?utm_source=chatgpt.com "Hive: The Lightning-Fast Local Storage Solution for Flutter Apps | by Kalana Heshan | Medium"
+[3]: https://medium.com/%40BolgerCarol/flutters-shared-preferences-the-simple-guide-to-local-storage-on-mobile-and-web-21a5c5dc08b4?utm_source=chatgpt.com "Flutter’s shared_preferences: The Simple Guide to Local Storage on Mobile and Web | by Carol Bolger | Medium"
+[4]: https://fluttercentral.com/storage/?utm_source=chatgpt.com "Flutter Storage Tutorials - Data Persistence Guide | FlutterCentral"
