@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:xmtp/xmtp.dart' as xmtp;
 import 'package:web3dart/web3dart.dart';
 import '../session/session_manager.dart';
+import 'xmtp_key_storage.dart';
 
 /// XMTP Service - Handles peer-to-peer messaging using XMTP protocol
 ///
@@ -36,23 +38,27 @@ class XmtpService {
 
   /// Initialize XMTP client using the private key from SessionManager
   ///
-  /// This must be called after user authentication.
-  /// Uses the private key stored in SessionManager (from Web3Auth).
+  /// This method will:
+  /// 1. Check if XMTP keys exist for this wallet
+  /// 2. If yes, load keys and create client (faster, no signing needed)
+  /// 3. If no, create new client from wallet and save keys
   ///
   /// [useProduction] - If true, uses production network, otherwise dev network
   /// Defaults to false (dev) for testing
-  Future<void> initialize({bool useProduction = false}) async {
+  /// [walletAddress] - Optional wallet address (if not provided, gets from session)
+  Future<void> initialize({
+    bool useProduction = false,
+    String? walletAddress,
+  }) async {
     if (_client != null) {
       debugPrint('[XmtpService] Client already initialized');
       return;
     }
 
-    // Get private key from session manager
-    final privateKey = await SessionManager.instance.getAuthToken();
-    if (privateKey == null) {
-      throw Exception(
-        'No private key found. User must be authenticated first.',
-      );
+    // Get wallet address
+    final wallet = walletAddress ?? await SessionManager.instance.getUserAddress();
+    if (wallet == null) {
+      throw Exception('No wallet address found. User must be authenticated first.');
     }
 
     try {
@@ -61,30 +67,23 @@ class XmtpService {
 
       debugPrint('[XmtpService] Initializing XMTP client...');
       debugPrint('[XmtpService] Network: $host');
+      debugPrint('[XmtpService] Wallet: $wallet');
 
       // Create API client with host
       final api = xmtp.Api.create(host: host, isSecure: true);
 
-      // Create wallet from private key
-      // Remove '0x' prefix if present
-      final cleanedKey = privateKey.startsWith('0x')
-          ? privateKey.substring(2)
-          : privateKey;
+      // Check if we have stored keys for this wallet
+      final hasStoredKeys = await XmtpKeyStorage.instance.hasKeys(wallet);
 
-      // Create EthPrivateKey wallet from web3dart
-      final wallet = EthPrivateKey.fromHex(cleanedKey);
-
-      // Create XMTP Signer using the wallet
-      final signer = xmtp.Signer.create(
-        wallet.address.hex,
-        (text) async {
-          final message = Uint8List.fromList(text.codeUnits);
-          return wallet.signPersonalMessageToUint8List(message);
-        },
-      );
-
-      // Create XMTP client
-      _client = await xmtp.Client.createFromWallet(api, signer);
+      if (hasStoredKeys) {
+        // Load from stored keys (fast, no signing needed)
+        debugPrint('[XmtpService] Loading from stored keys...');
+        await _initializeFromStoredKeys(api, wallet);
+      } else {
+        // Create new client from wallet (requires signing)
+        debugPrint('[XmtpService] Creating new XMTP identity...');
+        await _initializeFromWallet(api, wallet);
+      }
 
       debugPrint('[XmtpService] XMTP client initialized successfully');
       debugPrint('[XmtpService] Wallet address: ${_client!.address}');
@@ -97,6 +96,64 @@ class XmtpService {
       _client = null;
       rethrow;
     }
+  }
+
+  /// Initialize client from stored XMTP keys
+  Future<void> _initializeFromStoredKeys(xmtp.Api api, String wallet) async {
+    final keysData = await XmtpKeyStorage.instance.loadKeys(wallet);
+    if (keysData == null) {
+      throw Exception('No keys found for wallet');
+    }
+
+    // Decode base64 string to bytes
+    final keysBytes = base64Decode(keysData);
+
+    // Create PrivateKeyBundle from bytes
+    final keys = xmtp.PrivateKeyBundle.fromBuffer(keysBytes);
+
+    // Create client from keys
+    _client = await xmtp.Client.createFromKeys(api, keys);
+
+    debugPrint('[XmtpService] Client created from stored keys');
+  }
+
+  /// Initialize client from wallet private key (creates new XMTP identity)
+  Future<void> _initializeFromWallet(xmtp.Api api, String wallet) async {
+    // Get private key from session manager
+    final privateKey = await SessionManager.instance.getAuthToken();
+    if (privateKey == null) {
+      throw Exception('No private key found. User must be authenticated first.');
+    }
+
+    // Create wallet from private key
+    // Remove '0x' prefix if present
+    final cleanedKey =
+        privateKey.startsWith('0x') ? privateKey.substring(2) : privateKey;
+
+    // Create EthPrivateKey wallet from web3dart
+    final ethWallet = EthPrivateKey.fromHex(cleanedKey);
+
+    // Create XMTP Signer using the wallet
+    final signer = xmtp.Signer.create(
+      ethWallet.address.hex,
+      (text) async {
+        final message = Uint8List.fromList(text.codeUnits);
+        return ethWallet.signPersonalMessageToUint8List(message);
+      },
+    );
+
+    // Create XMTP client
+    _client = await xmtp.Client.createFromWallet(api, signer);
+
+    // Save keys for future use
+    final keysBytes = _client!.keys.writeToBuffer();
+    final keysData = base64Encode(keysBytes);
+    await XmtpKeyStorage.instance.saveKeys(
+      walletAddress: wallet,
+      keysData: keysData,
+    );
+
+    debugPrint('[XmtpService] Client created from wallet and keys saved');
   }
 
   // ─────────────────────────────────────────────────────────────────────────
