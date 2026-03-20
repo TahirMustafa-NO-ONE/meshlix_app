@@ -1,11 +1,12 @@
 import 'package:hive/hive.dart';
+import '../../services/api/api_service.dart';
 
 part 'message_model.g.dart';
 
 @HiveType(typeId: 0)
 class MessageModel extends HiveObject {
   @HiveField(0)
-  String id; // XMTP message ID
+  String id;
 
   @HiveField(1)
   String conversationTopic;
@@ -20,10 +21,10 @@ class MessageModel extends HiveObject {
   DateTime sentAt;
 
   @HiveField(5)
-  bool isSynced; // true if from XMTP, false if pending send
+  bool isSynced;
 
   @HiveField(6)
-  String? status; // pending, sent, failed
+  String? status;
 
   MessageModel({
     required this.id,
@@ -35,28 +36,15 @@ class MessageModel extends HiveObject {
     this.status = 'sent',
   });
 
-  // Create from XMTP DecodedMessage
-  factory MessageModel.fromXmtp(dynamic xmtpMessage, String topic) {
+  factory MessageModel.fromBackend(BackendMessage backendMessage, String topic) {
     return MessageModel(
-      id: xmtpMessage.id,
+      id: backendMessage.id,
       conversationTopic: topic,
-      sender: xmtpMessage.sender.hex,
-      content: xmtpMessage.content.toString(),
-      sentAt: xmtpMessage.sentAt,
-      isSynced: true,
-      status: 'sent',
+      sender: backendMessage.sender,
+      content: backendMessage.content,
+      sentAt: backendMessage.sentAt,
+      isSynced: (backendMessage.status ?? 'sent') == 'sent',
+      status: backendMessage.status ?? 'sent',
     );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'conversationTopic': conversationTopic,
-      'sender': sender,
-      'content': content,
-      'sentAt': sentAt.toIso8601String(),
-      'isSynced': isSynced,
-      'status': status,
-    };
   }
 }

@@ -1,316 +1,223 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:xmtp/xmtp.dart' as xmtp;
-import '../xmtp/xmtp_service.dart';
 import '../../db/db_service.dart';
-import '../../db/models/message_model.dart';
 import '../../db/models/conversation_model.dart';
+import '../../db/models/message_model.dart';
+import '../api/api_service.dart';
+import '../socket/socket_service.dart';
 
-/// Sync Service - Syncs XMTP messages to local database
-///
-/// This is the heart of the offline-first architecture.
-/// Handles:
-/// - Initial sync from XMTP to local DB
-/// - Real-time message streaming
-/// - Deduplication using message IDs
-/// - Automatic contact creation
 class SyncService {
   SyncService._();
   static final SyncService instance = SyncService._();
 
-  final _xmtpService = XmtpService.instance;
+  final _apiService = ApiService.instance;
+  final _socketService = SocketService.instance;
   final _dbService = DbService.instance;
 
-  StreamSubscription<xmtp.DecodedMessage>? _messageSubscription;
+  StreamSubscription<BackendMessage>? _messageSubscription;
+  StreamSubscription<MessageStatus>? _statusSubscription;
   bool _isSyncing = false;
+
   bool get isSyncing => _isSyncing;
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // INITIAL SYNC
-  // ─────────────────────────────────────────────────────────────────────────
-
-  /// Perform initial sync from XMTP to local database
-  ///
-  /// This fetches all conversations and messages from XMTP and stores them locally
-  /// Should be called after XMTP client initialization
   Future<void> performInitialSync() async {
-    if (_isSyncing) {
-      debugPrint('[SyncService] Sync already in progress');
-      return;
-    }
-
+    if (_isSyncing) return;
     _isSyncing = true;
-    debugPrint('[SyncService] Starting initial sync...');
 
     try {
-      // Get all conversations from XMTP
-      final xmtpConversations = await _xmtpService.listConversations();
-      debugPrint(
-        '[SyncService] Found ${xmtpConversations.length} conversations',
-      );
+      final backendConversations = await _apiService.getConversations();
 
-      int totalMessages = 0;
-      int newMessages = 0;
-
-      // Process each conversation
-      for (final xmtpConvo in xmtpConversations) {
-        // Save conversation if not exists
-        if (!_dbService.conversationExists(xmtpConvo.topic)) {
-          final conversation = ConversationModel.fromXmtp(xmtpConvo);
-          await _dbService.saveConversation(conversation);
-          debugPrint(
-            '[SyncService] Saved new conversation: ${xmtpConvo.topic}',
+      for (final backendConvo in backendConversations) {
+        if (!_dbService.conversationExists(backendConvo.topic)) {
+          await _dbService.saveConversation(
+            ConversationModel.fromBackend(backendConvo),
           );
         }
 
-        // Get messages from this conversation
-        final messages = await _xmtpService.getMessages(
-          conversation: xmtpConvo,
-          limit: 100, // Limit to last 100 messages for initial sync
+        final messages = await _apiService.getMessages(
+          peerAddress: backendConvo.peerAddress,
         );
 
-        totalMessages += messages.length;
+        for (final backendMessage in messages) {
+          if (_dbService.messageExists(backendMessage.id)) {
+            continue;
+          }
 
-        // Save messages to database (with deduplication)
-        for (final xmtpMessage in messages) {
-          if (!_dbService.messageExists(xmtpMessage.id)) {
-            final message = MessageModel.fromXmtp(xmtpMessage, xmtpConvo.topic);
-            await _dbService.saveMessage(message);
-            newMessages++;
+          final message = MessageModel.fromBackend(
+            backendMessage,
+            backendConvo.topic,
+          );
+          await _dbService.saveMessage(message);
+          await _dbService.upsertContact(backendConvo.peerAddress);
 
-            // Update conversation's last message
-            final conversation = _dbService.getConversation(xmtpConvo.topic);
-            if (conversation != null) {
-              conversation.updateLastMessage(message.content, message.sentAt);
-            }
-
-            // Auto-create contact
-            await _dbService.upsertContact(xmtpMessage.sender.hex);
+          final conversation = _dbService.getConversation(backendConvo.topic);
+          if (conversation != null) {
+            conversation.updateLastMessage(message.content, message.sentAt);
           }
         }
       }
 
-      debugPrint('[SyncService] Initial sync complete');
-      debugPrint('[SyncService] Total messages: $totalMessages');
-      debugPrint('[SyncService] New messages saved: $newMessages');
-
-      // Start real-time sync after initial sync
       startRealtimeSync();
-    } catch (e, stackTrace) {
-      debugPrint('[SyncService] Initial sync failed: $e');
-      debugPrint('[SyncService] Stack trace: $stackTrace');
-      rethrow;
     } finally {
       _isSyncing = false;
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // REAL-TIME SYNC
-  // ─────────────────────────────────────────────────────────────────────────
-
-  /// Start real-time message sync from XMTP stream
-  ///
-  /// Listens to XMTP message stream and saves new messages to database
   void startRealtimeSync() {
-    if (_messageSubscription != null) {
-      debugPrint('[SyncService] Real-time sync already active');
-      return;
-    }
+    if (_messageSubscription != null) return;
 
-    debugPrint('[SyncService] Starting real-time sync...');
+    _messageSubscription = _socketService.messageStream.listen((backendMessage) async {
+      await _handleIncomingMessage(backendMessage);
+    });
 
-    _messageSubscription = _xmtpService.messageStream.listen(
-      (xmtpMessage) async {
-        try {
-          await _handleIncomingMessage(xmtpMessage);
-        } catch (e) {
-          debugPrint('[SyncService] Error handling incoming message: $e');
-        }
-      },
-      onError: (error) {
-        debugPrint('[SyncService] Stream error: $error');
-      },
-      onDone: () {
-        debugPrint('[SyncService] Stream closed');
-      },
-    );
-
-    debugPrint('[SyncService] Real-time sync started');
+    _statusSubscription = _socketService.statusStream.listen((status) async {
+      await _handleStatusUpdate(status);
+    });
   }
 
-  /// Stop real-time message sync
   Future<void> stopRealtimeSync() async {
-    if (_messageSubscription != null) {
-      await _messageSubscription!.cancel();
-      _messageSubscription = null;
-      debugPrint('[SyncService] Real-time sync stopped');
-    }
+    await _messageSubscription?.cancel();
+    await _statusSubscription?.cancel();
+    _messageSubscription = null;
+    _statusSubscription = null;
   }
 
-  /// Handle incoming message from XMTP stream
-  Future<void> _handleIncomingMessage(xmtp.DecodedMessage xmtpMessage) async {
-    debugPrint('[SyncService] Processing incoming message: ${xmtpMessage.id}');
-
-    // Deduplication check
-    if (_dbService.messageExists(xmtpMessage.id)) {
-      debugPrint('[SyncService] Message already exists, skipping');
+  Future<void> _handleIncomingMessage(BackendMessage backendMessage) async {
+    if (_dbService.messageExists(backendMessage.id)) {
       return;
     }
 
-    // We need to get the conversation topic
-    // In a real app, you'd get this from the message or conversation list
-    // For now, we'll create a synthetic topic from sender/recipient
-    final conversations = await _xmtpService.listConversations();
-    final matchingConvo = conversations.firstWhere(
-      (c) => c.peer.hex == xmtpMessage.sender.hex,
-      orElse: () => throw Exception('Conversation not found'),
-    );
+    final currentWallet = _apiService.walletAddress;
+    if (currentWallet == null) {
+      return;
+    }
 
-    // Save message to database
-    final message = MessageModel.fromXmtp(xmtpMessage, matchingConvo.topic);
+    final topic = backendMessage.conversationTopic ??
+        generateConversationTopic(backendMessage.sender, currentWallet);
+    final message = MessageModel.fromBackend(backendMessage, topic);
+
     await _dbService.saveMessage(message);
 
-    // Update conversation
-    var conversation = _dbService.getConversation(matchingConvo.topic);
+    var conversation = _dbService.getConversation(topic);
     if (conversation == null) {
-      conversation = ConversationModel.fromXmtp(matchingConvo);
+      conversation = ConversationModel(
+        topic: topic,
+        peerAddress: backendMessage.sender,
+        createdAt: DateTime.now(),
+        lastMessage: backendMessage.content,
+        lastMessageAt: backendMessage.sentAt,
+        unreadCount: 0,
+      );
       await _dbService.saveConversation(conversation);
     }
+
     conversation.updateLastMessage(message.content, message.sentAt);
     conversation.unreadCount++;
     await conversation.save();
-
-    // Auto-create/update contact
-    await _dbService.upsertContact(xmtpMessage.sender.hex);
-
-    debugPrint('[SyncService] Message saved and synced');
+    await _dbService.upsertContact(conversation.peerAddress);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // SEND MESSAGE (with offline queue support)
-  // ─────────────────────────────────────────────────────────────────────────
+  Future<void> _handleStatusUpdate(MessageStatus status) async {
+    await _dbService.updateMessageStatus(
+      status.id,
+      status.status == 'sent',
+      status.status,
+    );
+  }
 
-  /// Send a message (saves locally first, then sends via XMTP)
-  ///
-  /// This implements the offline-first pattern:
-  /// 1. Save message to local DB as "pending"
-  /// 2. Send via XMTP
-  /// 3. Update status to "sent" if successful
+  String generateConversationTopic(String addr1, String addr2) {
+    final addresses = [addr1.toLowerCase(), addr2.toLowerCase()]..sort();
+    return 'xmtp_${addresses[0]}_${addresses[1]}';
+  }
+
   Future<MessageModel> sendMessage({
     required String recipientAddress,
     required String messageContent,
   }) async {
+    final walletAddress = _apiService.walletAddress;
+    if (walletAddress == null) {
+      throw Exception('No active wallet session');
+    }
+
+    final topic = generateConversationTopic(recipientAddress, walletAddress);
+    final temporaryId = 'local_${DateTime.now().microsecondsSinceEpoch}';
+    final localMessage = MessageModel(
+      id: temporaryId,
+      conversationTopic: topic,
+      sender: walletAddress,
+      content: messageContent,
+      sentAt: DateTime.now(),
+      isSynced: false,
+      status: 'pending',
+    );
+
+    await _dbService.saveMessage(localMessage);
+
+    var conversation = _dbService.getConversation(topic);
+    if (conversation == null) {
+      conversation = ConversationModel(
+        topic: topic,
+        peerAddress: recipientAddress.toLowerCase(),
+        createdAt: DateTime.now(),
+        lastMessage: messageContent,
+        lastMessageAt: localMessage.sentAt,
+      );
+      await _dbService.saveConversation(conversation);
+    } else {
+      conversation.updateLastMessage(messageContent, localMessage.sentAt);
+    }
+
+    await _dbService.upsertContact(recipientAddress);
+
     try {
-      debugPrint('[SyncService] Sending message to: $recipientAddress');
-
-      // Get or create conversation
-      final xmtpConversation = await _xmtpService.getConversation(
-        recipientAddress,
+      final sentMessage = await _apiService.sendMessage(
+        recipientAddress: recipientAddress,
+        message: messageContent,
       );
-
-      // Create message locally first (pending state)
-      final localMessage = MessageModel(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        conversationTopic: xmtpConversation.topic,
-        sender: _xmtpService.walletAddress ?? 'unknown',
-        content: messageContent,
-        sentAt: DateTime.now(),
-        isSynced: false,
-        status: 'pending',
+      await _dbService.replaceMessageId(
+        oldId: temporaryId,
+        newId: sentMessage.id,
+        isSynced: true,
+        status: sentMessage.status ?? 'sent',
       );
-
-      // Save to local database
-      await _dbService.saveMessage(localMessage);
-
-      // Save/update conversation
-      var conversation = _dbService.getConversation(xmtpConversation.topic);
-      if (conversation == null) {
-        conversation = ConversationModel.fromXmtp(xmtpConversation);
-        await _dbService.saveConversation(conversation);
-      }
-      conversation.updateLastMessage(messageContent, DateTime.now());
-
-      // Auto-create/update contact
-      await _dbService.upsertContact(recipientAddress);
-
-      // Attempt to send via XMTP
-      try {
-        await _xmtpService.sendMessage(
-          recipientAddress: recipientAddress,
-          message: messageContent,
-        );
-
-        // Update message status to sent
-        await _dbService.updateMessageStatus(localMessage.id, true, 'sent');
-        debugPrint('[SyncService] Message sent and synced');
-      } catch (e) {
-        // If send fails, keep as pending (will retry later)
-        debugPrint('[SyncService] Failed to send message, kept as pending: $e');
-        await _dbService.updateMessageStatus(localMessage.id, false, 'failed');
-        rethrow;
-      }
-
+      localMessage.id = sentMessage.id;
+      localMessage.isSynced = true;
+      localMessage.status = sentMessage.status ?? 'sent';
       return localMessage;
     } catch (e) {
-      debugPrint('[SyncService] Send message error: $e');
+      await _dbService.updateMessageStatus(temporaryId, false, 'failed');
       rethrow;
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // OFFLINE QUEUE (Phase 6)
-  // ─────────────────────────────────────────────────────────────────────────
-
-  /// Retry sending pending messages
-  ///
-  /// This should be called when connection is restored
   Future<void> retryPendingMessages() async {
-    debugPrint('[SyncService] Retrying pending messages...');
-
     final pendingMessages = _dbService.getPendingMessages();
-    debugPrint(
-      '[SyncService] Found ${pendingMessages.length} pending messages',
-    );
 
     for (final message in pendingMessages) {
-      try {
-        // Get conversation to find peer address
-        final conversation = _dbService.getConversation(
-          message.conversationTopic,
-        );
-        if (conversation == null) {
-          debugPrint(
-            '[SyncService] Conversation not found for message: ${message.id}',
-          );
-          continue;
-        }
+      final conversation = _dbService.getConversation(message.conversationTopic);
+      if (conversation == null) {
+        continue;
+      }
 
-        // Retry sending
-        await _xmtpService.sendMessage(
+      try {
+        final sentMessage = await _apiService.sendMessage(
           recipientAddress: conversation.peerAddress,
           message: message.content,
         );
-
-        // Update status
-        await _dbService.updateMessageStatus(message.id, true, 'sent');
-        debugPrint('[SyncService] Pending message sent: ${message.id}');
+        await _dbService.replaceMessageId(
+          oldId: message.id,
+          newId: sentMessage.id,
+          isSynced: true,
+          status: sentMessage.status ?? 'sent',
+        );
       } catch (e) {
-        debugPrint('[SyncService] Failed to retry message ${message.id}: $e');
+        debugPrint('[SyncService] Retry failed for ${message.id}: $e');
         await _dbService.updateMessageStatus(message.id, false, 'failed');
       }
     }
-
-    debugPrint('[SyncService] Retry complete');
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // UTILITIES
-  // ─────────────────────────────────────────────────────────────────────────
-
-  /// Dispose and cleanup resources
   Future<void> dispose() async {
     await stopRealtimeSync();
-    debugPrint('[SyncService] Disposed');
   }
 }

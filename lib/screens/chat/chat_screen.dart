@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../controllers/chat_controller.dart';
 import '../../db/models/conversation_model.dart';
 import '../../db/models/message_model.dart';
-import '../../services/xmtp/xmtp_service.dart';
+import '../../services/api/api_service.dart';
 import '../../theme/app_colors.dart';
 
 /// Chat Screen
@@ -87,7 +87,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final myAddress = XmtpService.instance.walletAddress?.toLowerCase() ?? '';
+    final myAddress = ApiService.instance.walletAddress?.toLowerCase() ?? '';
 
     return Scaffold(
       backgroundColor: AppColors.background,

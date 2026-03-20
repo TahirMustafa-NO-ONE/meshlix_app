@@ -188,15 +188,26 @@ class _AuthScreenState extends State<AuthScreen> with WidgetsBindingObserver {
           currentUser.publicAddress,
         );
       }
+
+      // Only navigate if initialization succeeded
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+        );
+      }
     } catch (e) {
       debugPrint('[AuthScreen] Service initialization failed: $e');
-      // Continue to home even if services fail - they can be initialized later
-    }
 
-    if (mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
-      );
+      // Show error to user
+      if (mounted) {
+        _showSnack(
+          'Failed to initialize XMTP: ${e.toString()}\n\n'
+          'Please check your internet connection and try again.',
+        );
+
+        // Log out the user since services failed
+        await AuthService.instance.signOut();
+      }
     }
   }
 
