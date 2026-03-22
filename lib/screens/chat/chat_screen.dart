@@ -88,6 +88,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final myAddress = ApiService.instance.walletAddress?.toLowerCase() ?? '';
+    final isRequest = _chatController.currentConversation?.isRequest ?? widget.conversation.isRequest;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -105,10 +106,11 @@ class _ChatScreenState extends State<ChatScreen> {
               children: [
                 // Header
                 _buildHeader(),
+                if (isRequest) _buildRequestBanner(),
                 // Messages
                 Expanded(child: _buildMessageList(myAddress)),
                 // Input
-                _buildMessageInput(),
+                isRequest ? const SizedBox.shrink() : _buildMessageInput(),
               ],
             ),
           ),
@@ -340,6 +342,70 @@ class _ChatScreenState extends State<ChatScreen> {
                     : const Icon(Icons.send, color: Colors.black, size: 20),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRequestBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceVariant,
+        border: Border(bottom: BorderSide(color: AppColors.border, width: 1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Message request',
+            style: GoogleFonts.rajdhani(
+              color: AppColors.primaryAccent,
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Accept this request to move it into your main chats and reply normally.',
+            style: GoogleFonts.rajdhani(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () async {
+                    await _chatController.declineRequest(widget.conversation);
+                    if (mounted) {
+                      Navigator.of(context).pop();
+                    }
+                  },
+                  child: const Text('Decline'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () async {
+                    await _chatController.acceptRequest(widget.conversation);
+                    if (mounted) {
+                      setState(() {});
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryAccent,
+                    foregroundColor: Colors.black,
+                  ),
+                  child: const Text('Accept'),
+                ),
+              ),
+            ],
           ),
         ],
       ),

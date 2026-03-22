@@ -5,10 +5,9 @@ import '../../theme/app_colors.dart';
 import 'home_screen.dart';
 import 'profile_screen.dart';
 import '../chat/chat_list_screen.dart';
-import '../contacts/contacts_screen.dart';
 
 /// Main navigation screen with persistent bottom navigation bar
-/// Manages tab switching between Home, Chats, Contacts, and Profile screens
+/// Manages tab switching between Home, Chats, and Profile screens
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
 
@@ -24,7 +23,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   static const List<Widget> _screens = [
     HomeScreen(),
     ChatListScreen(),
-    ContactsScreen(),
     ProfileScreen(),
   ];
 
@@ -86,11 +84,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               icon: _buildChatIcon(unreadCount, false),
               activeIcon: _buildChatIcon(unreadCount, true),
               label: 'Chats',
-            ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.people_outline),
-              activeIcon: Icon(Icons.people),
-              label: 'Contacts',
             ),
             const BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),

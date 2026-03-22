@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../controllers/chat_controller.dart';
+import '../../db/models/contact_model.dart';
 import '../../db/models/conversation_model.dart';
 import '../../theme/app_colors.dart';
 import 'chat_screen.dart';
+import 'message_requests_screen.dart';
 
 /// Chat List Screen
 ///
@@ -38,6 +40,16 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   void _openChat(ConversationModel conversation) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ChatScreen(conversation: conversation)),
+    );
+  }
+
+  Future<void> _openContact(ContactModel contact) async {
+    final conversation = await _chatController.getOrCreateConversation(
+      contact.address,
+    );
+    if (!mounted || conversation == null) return;
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => ChatScreen(conversation: conversation)),
     );
@@ -106,9 +118,35 @@ class _ChatListScreenState extends State<ChatListScreen> {
               ),
             ],
           ),
-          IconButton(
-            icon: Icon(Icons.refresh, color: AppColors.primaryAccent),
-            onPressed: _isRefreshing ? null : _handleRefresh,
+          Row(
+            children: [
+              if (_chatController.totalRequestCount > 0)
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const MessageRequestsScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(
+                    Icons.mark_chat_unread_outlined,
+                    size: 18,
+                    color: AppColors.primaryAccent,
+                  ),
+                  label: Text(
+                    'Requests (${_chatController.totalRequestCount})',
+                    style: GoogleFonts.rajdhani(
+                      color: AppColors.primaryAccent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              IconButton(
+                icon: Icon(Icons.refresh, color: AppColors.primaryAccent),
+                onPressed: _isRefreshing ? null : _handleRefresh,
+              ),
+            ],
           ),
         ],
       ),
@@ -150,8 +188,15 @@ class _ChatListScreenState extends State<ChatListScreen> {
     }
 
     final conversations = _chatController.conversations;
+    final contacts = _chatController.contacts;
+    final conversationAddresses = conversations
+        .map((conversation) => conversation.peerAddress.toLowerCase())
+        .toSet();
+    final contactOnlyItems = contacts
+        .where((contact) => !conversationAddresses.contains(contact.address.toLowerCase()))
+        .toList();
 
-    if (conversations.isEmpty) {
+    if (conversations.isEmpty && contactOnlyItems.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -186,16 +231,22 @@ class _ChatListScreenState extends State<ChatListScreen> {
     return RefreshIndicator(
       onRefresh: _handleRefresh,
       color: AppColors.primaryAccent,
-      child: ListView.builder(
+      child: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: conversations.length,
-        itemBuilder: (context, index) {
-          final conversation = conversations[index];
-          return _ConversationTile(
-            conversation: conversation,
-            onTap: () => _openChat(conversation),
-          );
-        },
+        children: [
+          ...conversations.map(
+            (conversation) => _ConversationTile(
+              conversation: conversation,
+              onTap: () => _openChat(conversation),
+            ),
+          ),
+          ...contactOnlyItems.map(
+            (contact) => _ContactTile(
+              contact: contact,
+              onTap: () => _openContact(contact),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -350,5 +401,91 @@ class _ConversationTile extends StatelessWidget {
     if (diff.inHours > 0) return '${diff.inHours}h ago';
     if (diff.inMinutes > 0) return '${diff.inMinutes}m ago';
     return 'Now';
+  }
+}
+
+class _ContactTile extends StatelessWidget {
+  final ContactModel contact;
+  final VoidCallback onTap;
+
+  const _ContactTile({required this.contact, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: AppColors.border, width: 0.5),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.primaryAccent.withValues(alpha: 0.10),
+                border: Border.all(color: AppColors.border, width: 1),
+              ),
+              child: Center(
+                child: Text(
+                  _getAvatarText(contact.address),
+                  style: GoogleFonts.robotoMono(
+                    color: AppColors.primaryAccent,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    contact.displayName ?? _formatAddress(contact.address),
+                    style: GoogleFonts.rajdhani(
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    contact.displayName == null
+                        ? 'Tap to open chat'
+                        : _formatAddress(contact.address),
+                    style: GoogleFonts.robotoMono(
+                      color: AppColors.textHint,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chat_bubble_outline,
+              color: AppColors.primaryAccent,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _getAvatarText(String address) {
+    if (address.length < 6) return '??';
+    return address.substring(2, 4).toUpperCase();
+  }
+
+  String _formatAddress(String address) {
+    if (address.length < 10) return address;
+    return '${address.substring(0, 6)}...${address.substring(address.length - 4)}';
   }
 }

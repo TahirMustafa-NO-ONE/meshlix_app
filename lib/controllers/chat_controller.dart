@@ -16,6 +16,7 @@ class ChatController extends ChangeNotifier {
   final _syncService = SyncService.instance;
 
   List<ConversationModel> _conversations = [];
+  List<ConversationModel> _requests = [];
   List<ContactModel> _contacts = [];
   final Map<String, List<MessageModel>> _messagesByTopic = {};
   ConversationModel? _currentConversation;
@@ -26,6 +27,7 @@ class ChatController extends ChangeNotifier {
   StreamSubscription<MessageStatus>? _statusStreamSubscription;
 
   List<ConversationModel> get conversations => _conversations;
+  List<ConversationModel> get requests => _requests;
   List<ContactModel> get contacts => _contacts;
   ConversationModel? get currentConversation => _currentConversation;
   bool get isLoading => _isLoading;
@@ -58,7 +60,8 @@ class ChatController extends ChangeNotifier {
   }
 
   Future<void> loadConversations() async {
-    _conversations = _dbService.getAllConversations();
+    _conversations = _dbService.getConversationsByConsent(['allowed']);
+    _requests = _dbService.getConversationsByConsent(['unknown']);
     notifyListeners();
   }
 
@@ -97,6 +100,7 @@ class ChatController extends ChangeNotifier {
         topic: topic,
         peerAddress: peerAddress.toLowerCase(),
         createdAt: DateTime.now(),
+        consentState: 'allowed',
       );
       await _dbService.saveConversation(conversation);
       await _dbService.upsertContact(peerAddress);
@@ -120,14 +124,28 @@ class ChatController extends ChangeNotifier {
     }
 
     try {
+      final topic = _currentConversation!.topic;
       final message = await _syncService.sendMessage(
         recipientAddress: _currentConversation!.peerAddress,
         messageContent: content,
       );
 
-      final messages = _messagesByTopic[_currentConversation!.topic] ?? [];
-      messages.add(message);
-      _messagesByTopic[_currentConversation!.topic] = messages;
+      final messages = _messagesByTopic[topic] ?? [];
+      final alreadyPresent = messages.any(
+        (existing) =>
+            existing.id == message.id ||
+            (existing.sentAt == message.sentAt &&
+                existing.sender == message.sender &&
+                existing.content == message.content),
+      );
+
+      if (!alreadyPresent) {
+        messages.add(message);
+        _messagesByTopic[topic] = messages;
+      } else {
+        await loadMessagesForConversation(topic);
+      }
+
       _currentConversation!.updateLastMessage(content, message.sentAt);
       notifyListeners();
       return true;
@@ -188,6 +206,26 @@ class ChatController extends ChangeNotifier {
 
   int get totalUnreadCount {
     return _conversations.fold(0, (sum, c) => sum + c.unreadCount);
+  }
+
+  int get totalRequestCount => _requests.length;
+
+  Future<void> acceptRequest(ConversationModel conversation) async {
+    await _syncService.updateConversationConsent(
+      peerAddress: conversation.peerAddress,
+      consentState: 'allowed',
+    );
+    conversation.consentState = 'allowed';
+    await refresh();
+  }
+
+  Future<void> declineRequest(ConversationModel conversation) async {
+    await _syncService.updateConversationConsent(
+      peerAddress: conversation.peerAddress,
+      consentState: 'denied',
+    );
+    conversation.consentState = 'denied';
+    await refresh();
   }
 
   @override

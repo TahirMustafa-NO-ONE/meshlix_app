@@ -23,13 +23,14 @@ class ConversationModelAdapter extends TypeAdapter<ConversationModel> {
       lastMessageAt: fields[3] as DateTime?,
       createdAt: fields[4] as DateTime,
       unreadCount: fields[5] as int,
+      consentState: fields[6] as String? ?? 'allowed',
     );
   }
 
   @override
   void write(BinaryWriter writer, ConversationModel obj) {
     writer
-      ..writeByte(6)
+      ..writeByte(7)
       ..writeByte(0)
       ..write(obj.topic)
       ..writeByte(1)
@@ -41,7 +42,9 @@ class ConversationModelAdapter extends TypeAdapter<ConversationModel> {
       ..writeByte(4)
       ..write(obj.createdAt)
       ..writeByte(5)
-      ..write(obj.unreadCount);
+      ..write(obj.unreadCount)
+      ..writeByte(6)
+      ..write(obj.consentState);
   }
 
   @override

@@ -135,9 +135,31 @@ class DbService {
     return conversations;
   }
 
+  List<ConversationModel> getConversationsByConsent(List<String> consentStates) {
+    _ensureInitialized();
+    final allowedStates = consentStates.map((state) => state.toLowerCase()).toSet();
+    final conversations = _conversationsBox!.values
+        .where((conversation) => allowedStates.contains(conversation.consentState))
+        .toList();
+    conversations.sort((a, b) {
+      if (a.lastMessageAt == null) return 1;
+      if (b.lastMessageAt == null) return -1;
+      return b.lastMessageAt!.compareTo(a.lastMessageAt!);
+    });
+    return conversations;
+  }
+
   bool conversationExists(String topic) {
     _ensureInitialized();
     return _conversationsBox!.containsKey(topic);
+  }
+
+  Future<void> updateConversationConsent(String topic, String consentState) async {
+    _ensureInitialized();
+    final conversation = _conversationsBox!.get(topic);
+    if (conversation == null) return;
+    conversation.consentState = consentState.toLowerCase();
+    await conversation.save();
   }
 
   Future<void> saveContact(ContactModel contact) async {

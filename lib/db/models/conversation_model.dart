@@ -23,6 +23,9 @@ class ConversationModel extends HiveObject {
   @HiveField(5)
   int unreadCount;
 
+  @HiveField(6)
+  String consentState;
+
   ConversationModel({
     required this.topic,
     required this.peerAddress,
@@ -30,6 +33,7 @@ class ConversationModel extends HiveObject {
     this.lastMessageAt,
     required this.createdAt,
     this.unreadCount = 0,
+    this.consentState = 'allowed',
   });
 
   factory ConversationModel.fromBackend(BackendConversation backendConversation) {
@@ -39,12 +43,22 @@ class ConversationModel extends HiveObject {
       lastMessage: backendConversation.lastMessage?.content,
       lastMessageAt: backendConversation.lastMessage?.sentAt,
       createdAt: backendConversation.createdAt,
+      consentState: backendConversation.consentState,
     );
   }
 
   void updateLastMessage(String message, DateTime sentAt) {
     lastMessage = message;
     lastMessageAt = sentAt;
+    save();
+  }
+
+  bool get isRequest => consentState == 'unknown';
+  bool get isAllowed => consentState == 'allowed';
+  bool get isDenied => consentState == 'denied';
+
+  void updateConsentState(String state) {
+    consentState = state;
     save();
   }
 }

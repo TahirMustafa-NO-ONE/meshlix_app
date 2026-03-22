@@ -1,21 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'services/auth/auth_service.dart';
-import 'services/storage/user_storage.dart';
-import 'services/session/session_manager.dart';
 import 'db/db_service.dart';
-import 'theme/app_theme.dart';
 import 'screens/splash/splash_screen.dart';
+import 'services/auth/auth_service.dart';
+import 'services/session/session_manager.dart';
+import 'services/storage/user_storage.dart';
+import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load environment variables from .env file
-  await dotenv.load(fileName: ".env");
-
-  // Initialize Hive for local database BEFORE runApp
+  await dotenv.load(fileName: '.env');
   await DbService.initializeHive();
+
+  // Restore persisted state before the splash screen decides navigation.
+  await SessionManager.instance.initialize();
+  await UserStorage.instance.initialize();
+  await AuthService.instance.initialize();
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -25,17 +27,6 @@ Future<void> main() async {
   );
 
   runApp(const MeshlixApp());
-
-  // Initialize services AFTER widget tree is established.
-  // This prevents crashes from native channel calls during SDK init.
-  // Non-fatal on first launch — the user just needs to log in.
-  WidgetsBinding.instance.addPostFrameCallback((_) async {
-    // Initialize in order: SessionManager -> UserStorage -> AuthService
-    // SessionManager must be first as AuthService depends on it for session persistence
-    await SessionManager.instance.initialize();
-    await UserStorage.instance.initialize();
-    await AuthService.instance.initialize();
-  });
 }
 
 class MeshlixApp extends StatelessWidget {
@@ -47,7 +38,6 @@ class MeshlixApp extends StatelessWidget {
       title: 'Meshlix',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
-      // Start with SplashScreen - it will check session and route appropriately
       home: const SplashScreen(),
     );
   }

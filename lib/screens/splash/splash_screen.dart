@@ -57,9 +57,19 @@ class _SplashScreenState extends State<SplashScreen> {
 
           // Initialize services for the authenticated user
           _updateStatus('Initializing services...');
-          await AppInitService.instance.initializeFromSession();
+          final initialized = await AppInitService.instance.initializeFromSession();
 
-          if (mounted) _navigateToHome();
+          if (!mounted) return;
+
+          if (initialized) {
+            _navigateToHome();
+          } else {
+            debugPrint(
+              '[SplashScreen] Service initialization failed, clearing session',
+            );
+            await SessionManager.instance.clearSession();
+            _navigateToAuth();
+          }
         } else {
           // Session exists in storage but AuthService didn't restore properly
           // This could happen if user data is corrupted or missing

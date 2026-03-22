@@ -32,6 +32,11 @@ class SyncService {
           await _dbService.saveConversation(
             ConversationModel.fromBackend(backendConvo),
           );
+        } else {
+          await _dbService.updateConversationConsent(
+            backendConvo.topic,
+            backendConvo.consentState,
+          );
         }
 
         final messages = await _apiService.getMessages(
@@ -107,10 +112,12 @@ class SyncService {
         lastMessage: backendMessage.content,
         lastMessageAt: backendMessage.sentAt,
         unreadCount: 0,
+        consentState: backendMessage.consentState,
       );
       await _dbService.saveConversation(conversation);
     }
 
+    conversation.consentState = backendMessage.consentState;
     conversation.updateLastMessage(message.content, message.sentAt);
     conversation.unreadCount++;
     await conversation.save();
@@ -161,9 +168,11 @@ class SyncService {
         createdAt: DateTime.now(),
         lastMessage: messageContent,
         lastMessageAt: localMessage.sentAt,
+        consentState: 'allowed',
       );
       await _dbService.saveConversation(conversation);
     } else {
+      conversation.consentState = 'allowed';
       conversation.updateLastMessage(messageContent, localMessage.sentAt);
     }
 
@@ -215,6 +224,27 @@ class SyncService {
         await _dbService.updateMessageStatus(message.id, false, 'failed');
       }
     }
+  }
+
+  Future<void> updateConversationConsent({
+    required String peerAddress,
+    required String consentState,
+  }) async {
+    final backendConversation = await _apiService.updateConversationConsent(
+      peerAddress: peerAddress,
+      consentState: consentState,
+    );
+
+    final existing = _dbService.getConversation(backendConversation.topic);
+    if (existing != null) {
+      existing.consentState = backendConversation.consentState;
+      await existing.save();
+      return;
+    }
+
+    await _dbService.saveConversation(
+      ConversationModel.fromBackend(backendConversation),
+    );
   }
 
   Future<void> dispose() async {

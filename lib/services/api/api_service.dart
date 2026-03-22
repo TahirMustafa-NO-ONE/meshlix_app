@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'backend_config.dart';
 import '../session/session_manager.dart';
+import '../storage/private_key_storage.dart';
 
 class ApiService {
   ApiService._();
@@ -42,7 +43,7 @@ class ApiService {
   }) async {
     _ensureInitialized();
 
-    final response = await http.post(
+    var response = await http.post(
       Uri.parse('${BackendConfig.httpBaseUrl}/send-message'),
       headers: _headers(),
       body: jsonEncode({
@@ -50,6 +51,18 @@ class ApiService {
         'message': message,
       }),
     );
+
+    if (response.statusCode == 401) {
+      await _reinitializeSession();
+      response = await http.post(
+        Uri.parse('${BackendConfig.httpBaseUrl}/send-message'),
+        headers: _headers(),
+        body: jsonEncode({
+          'recipientAddress': recipientAddress,
+          'message': message,
+        }),
+      );
+    }
 
     if (response.statusCode != 200) {
       throw Exception('Failed to send message: ${response.body}');
@@ -72,7 +85,12 @@ class ApiService {
 
     final uri = Uri.parse('${BackendConfig.httpBaseUrl}/messages')
         .replace(queryParameters: queryParameters);
-    final response = await http.get(uri, headers: _headers(includeJson: false));
+    var response = await http.get(uri, headers: _headers(includeJson: false));
+
+    if (response.statusCode == 401) {
+      await _reinitializeSession();
+      response = await http.get(uri, headers: _headers(includeJson: false));
+    }
 
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch messages: ${response.body}');
@@ -88,10 +106,18 @@ class ApiService {
   Future<List<BackendConversation>> getConversations() async {
     _ensureInitialized();
 
-    final response = await http.get(
+    var response = await http.get(
       Uri.parse('${BackendConfig.httpBaseUrl}/conversations'),
       headers: _headers(includeJson: false),
     );
+
+    if (response.statusCode == 401) {
+      await _reinitializeSession();
+      response = await http.get(
+        Uri.parse('${BackendConfig.httpBaseUrl}/conversations'),
+        headers: _headers(includeJson: false),
+      );
+    }
 
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch conversations: ${response.body}');
@@ -106,6 +132,43 @@ class ApiService {
         .toList();
   }
 
+  Future<BackendConversation> updateConversationConsent({
+    required String peerAddress,
+    required String consentState,
+  }) async {
+    _ensureInitialized();
+
+    var response = await http.post(
+      Uri.parse('${BackendConfig.httpBaseUrl}/conversations/consent'),
+      headers: _headers(),
+      body: jsonEncode({
+        'peerAddress': peerAddress,
+        'consentState': consentState,
+      }),
+    );
+
+    if (response.statusCode == 401) {
+      await _reinitializeSession();
+      response = await http.post(
+        Uri.parse('${BackendConfig.httpBaseUrl}/conversations/consent'),
+        headers: _headers(),
+        body: jsonEncode({
+          'peerAddress': peerAddress,
+          'consentState': consentState,
+        }),
+      );
+    }
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to update conversation consent: ${response.body}');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return BackendConversation.fromJson(
+      data['conversation'] as Map<String, dynamic>,
+    );
+  }
+
   Future<bool> canMessage(String targetAddress) async {
     _ensureInitialized();
 
@@ -113,7 +176,11 @@ class ApiService {
       queryParameters: {'targetAddress': targetAddress},
     );
 
-    final response = await http.get(uri, headers: _headers(includeJson: false));
+    var response = await http.get(uri, headers: _headers(includeJson: false));
+    if (response.statusCode == 401) {
+      await _reinitializeSession();
+      response = await http.get(uri, headers: _headers(includeJson: false));
+    }
     if (response.statusCode != 200) {
       return false;
     }
@@ -167,6 +234,21 @@ class ApiService {
     }
   }
 
+  Future<void> _reinitializeSession() async {
+    final walletAddress = _walletAddress;
+    if (walletAddress == null) {
+      throw Exception('Cannot reinitialize backend session without wallet address.');
+    }
+
+    final privateKey = await PrivateKeyStorage.instance.loadPrivateKey(walletAddress);
+    if (privateKey == null || privateKey.isEmpty) {
+      throw Exception('No private key found for wallet: $walletAddress');
+    }
+
+    debugPrint('[ApiService] Backend session expired, reinitializing...');
+    await initialize(walletAddress: walletAddress, privateKey: privateKey);
+  }
+
   bool get isInitialized => _walletAddress != null && _sessionToken != null;
   String? get walletAddress => _walletAddress;
   String? get sessionToken => _sessionToken;
@@ -180,6 +262,7 @@ class BackendMessage {
   final String? conversationTopic;
   final String? recipient;
   final String? status;
+  final String consentState;
 
   BackendMessage({
     required this.id,
@@ -189,6 +272,7 @@ class BackendMessage {
     this.conversationTopic,
     this.recipient,
     this.status,
+    this.consentState = 'allowed',
   });
 
   factory BackendMessage.fromJson(Map<String, dynamic> json) {
@@ -200,6 +284,7 @@ class BackendMessage {
       conversationTopic: json['conversationTopic'] as String?,
       recipient: json['recipient'] as String?,
       status: json['status'] as String?,
+      consentState: json['consentState'] as String? ?? 'allowed',
     );
   }
 }
@@ -209,12 +294,14 @@ class BackendConversation {
   final String peerAddress;
   final DateTime createdAt;
   final BackendMessage? lastMessage;
+  final String consentState;
 
   BackendConversation({
     required this.topic,
     required this.peerAddress,
     required this.createdAt,
     this.lastMessage,
+    this.consentState = 'allowed',
   });
 
   factory BackendConversation.fromJson(Map<String, dynamic> json) {
@@ -225,6 +312,7 @@ class BackendConversation {
       lastMessage: json['lastMessage'] == null
           ? null
           : BackendMessage.fromJson(json['lastMessage'] as Map<String, dynamic>),
+      consentState: json['consentState'] as String? ?? 'allowed',
     );
   }
 }
