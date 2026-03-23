@@ -25,7 +25,20 @@ class _ChatListScreenState extends State<ChatListScreen> {
   @override
   void initState() {
     super.initState();
+    _chatController.addListener(_onChatUpdate);
     _initializeController();
+  }
+
+  @override
+  void dispose() {
+    _chatController.removeListener(_onChatUpdate);
+    super.dispose();
+  }
+
+  void _onChatUpdate() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _initializeController() async {
@@ -39,10 +52,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
     if (mounted) setState(() => _isRefreshing = false);
   }
 
-  void _openChat(ConversationModel conversation) {
-    Navigator.of(context).push(
+  Future<void> _openChat(ConversationModel conversation) async {
+    await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => ChatScreen(conversation: conversation)),
     );
+    await _chatController.refresh();
   }
 
   Future<void> _openContact(ContactModel contact) async {
@@ -50,9 +64,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
       contact.address,
     );
     if (!mounted || conversation == null) return;
-    Navigator.of(context).push(
+    await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => ChatScreen(conversation: conversation)),
     );
+    await _chatController.refresh();
   }
 
   @override
@@ -193,7 +208,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
         .map((conversation) => conversation.peerAddress.toLowerCase())
         .toSet();
     final contactOnlyItems = contacts
-        .where((contact) => !conversationAddresses.contains(contact.address.toLowerCase()))
+        .where(
+          (contact) =>
+              !conversationAddresses.contains(contact.address.toLowerCase()),
+        )
         .toList();
 
     if (conversations.isEmpty && contactOnlyItems.isEmpty) {

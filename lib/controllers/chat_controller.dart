@@ -67,8 +67,7 @@ class ChatController extends ChangeNotifier {
 
   Future<void> setCurrentConversation(ConversationModel conversation) async {
     _currentConversation = conversation;
-    conversation.unreadCount = 0;
-    await conversation.save();
+    await markConversationAsRead(conversation.topic);
     await loadMessagesForConversation(conversation.topic);
     notifyListeners();
   }
@@ -116,6 +115,22 @@ class ChatController extends ChangeNotifier {
   Future<void> loadMessagesForConversation(String topic) async {
     _messagesByTopic[topic] = _dbService.getMessagesForConversation(topic);
     notifyListeners();
+  }
+
+  Future<void> markConversationAsRead(String topic) async {
+    final conversation = _dbService.getConversation(topic);
+    if (conversation == null) return;
+
+    if (conversation.unreadCount != 0) {
+      conversation.unreadCount = 0;
+      await conversation.save();
+    }
+
+    if (_currentConversation?.topic == topic) {
+      _currentConversation = conversation;
+    }
+
+    await loadConversations();
   }
 
   Future<bool> sendMessage(String content) async {
@@ -179,11 +194,15 @@ class ChatController extends ChangeNotifier {
     _messageStreamSubscription?.cancel();
     _statusStreamSubscription?.cancel();
 
-    _messageStreamSubscription = SocketService.instance.messageStream.listen((_) async {
+    _messageStreamSubscription = SocketService.instance.messageStream.listen((
+      _,
+    ) async {
       await refresh();
     });
 
-    _statusStreamSubscription = SocketService.instance.statusStream.listen((_) async {
+    _statusStreamSubscription = SocketService.instance.statusStream.listen((
+      _,
+    ) async {
       if (_currentConversation != null) {
         await loadMessagesForConversation(_currentConversation!.topic);
       }
@@ -195,6 +214,7 @@ class ChatController extends ChangeNotifier {
     await loadConversations();
     await loadContacts();
     if (_currentConversation != null) {
+      await markConversationAsRead(_currentConversation!.topic);
       await loadMessagesForConversation(_currentConversation!.topic);
     }
     notifyListeners();
