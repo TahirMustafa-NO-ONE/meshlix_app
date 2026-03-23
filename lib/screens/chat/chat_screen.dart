@@ -85,10 +85,56 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _confirmDeleteChat() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: Text(
+            'Delete chat?',
+            style: GoogleFonts.rajdhani(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Text(
+            'This will remove this chat and its local messages from this device.',
+            style: GoogleFonts.rajdhani(color: AppColors.textSecondary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    await _chatController.deleteConversation(widget.conversation);
+    if (!mounted) return;
+
+    navigator.pop();
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Chat deleted from this device')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final myAddress = ApiService.instance.walletAddress?.toLowerCase() ?? '';
-    final isRequest = _chatController.currentConversation?.isRequest ?? widget.conversation.isRequest;
+    final isRequest =
+        _chatController.currentConversation?.isRequest ??
+        widget.conversation.isRequest;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -186,6 +232,21 @@ class _ChatScreenState extends State<ChatScreen> {
               setState(() {});
               _scrollToBottom();
             },
+          ),
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert, color: AppColors.textSecondary),
+            color: AppColors.surface,
+            onSelected: (value) async {
+              if (value == 'delete_chat') {
+                await _confirmDeleteChat();
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem<String>(
+                value: 'delete_chat',
+                child: Text('Delete chat'),
+              ),
+            ],
           ),
         ],
       ),

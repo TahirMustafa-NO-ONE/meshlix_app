@@ -1,4 +1,5 @@
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'models/contact_model.dart';
 import 'models/conversation_model.dart';
 import 'models/message_model.dart';
@@ -11,6 +12,7 @@ class DbService {
   Box<MessageModel>? _messagesBox;
   Box<ConversationModel>? _conversationsBox;
   Box<ContactModel>? _contactsBox;
+  SharedPreferences? _prefs;
 
   bool get isInitialized => _currentWalletAddress != null;
   String? get currentWallet => _currentWalletAddress;
@@ -42,6 +44,7 @@ class DbService {
       'conversations_$wallet',
     );
     _contactsBox = await Hive.openBox<ContactModel>('contacts_$wallet');
+    _prefs = await SharedPreferences.getInstance();
     _currentWalletAddress = wallet;
   }
 
@@ -55,6 +58,7 @@ class DbService {
     _messagesBox = null;
     _conversationsBox = null;
     _contactsBox = null;
+    _prefs = null;
     _currentWalletAddress = null;
   }
 
@@ -119,6 +123,34 @@ class DbService {
     await _conversationsBox!.put(conversation.topic, conversation);
   }
 
+  Future<void> deleteConversationData({
+    required String topic,
+    required String peerAddress,
+  }) async {
+    _ensureInitialized();
+
+    final messageKeys = _messagesBox!.keys.where((key) {
+      final message = _messagesBox!.get(key);
+      return message?.conversationTopic == topic;
+    }).toList();
+
+    if (messageKeys.isNotEmpty) {
+      await _messagesBox!.deleteAll(messageKeys);
+    }
+
+    await _conversationsBox!.delete(topic);
+
+    final normalizedPeer = peerAddress.toLowerCase();
+    final hasOtherConversation = _conversationsBox!.values.any(
+      (conversation) =>
+          conversation.peerAddress.toLowerCase() == normalizedPeer,
+    );
+
+    if (!hasOtherConversation) {
+      await _contactsBox!.delete(normalizedPeer);
+    }
+  }
+
   ConversationModel? getConversation(String topic) {
     _ensureInitialized();
     return _conversationsBox!.get(topic);
@@ -135,11 +167,17 @@ class DbService {
     return conversations;
   }
 
-  List<ConversationModel> getConversationsByConsent(List<String> consentStates) {
+  List<ConversationModel> getConversationsByConsent(
+    List<String> consentStates,
+  ) {
     _ensureInitialized();
-    final allowedStates = consentStates.map((state) => state.toLowerCase()).toSet();
+    final allowedStates = consentStates
+        .map((state) => state.toLowerCase())
+        .toSet();
     final conversations = _conversationsBox!.values
-        .where((conversation) => allowedStates.contains(conversation.consentState))
+        .where(
+          (conversation) => allowedStates.contains(conversation.consentState),
+        )
         .toList();
     conversations.sort((a, b) {
       if (a.lastMessageAt == null) return 1;
@@ -154,7 +192,10 @@ class DbService {
     return _conversationsBox!.containsKey(topic);
   }
 
-  Future<void> updateConversationConsent(String topic, String consentState) async {
+  Future<void> updateConversationConsent(
+    String topic,
+    String consentState,
+  ) async {
     _ensureInitialized();
     final conversation = _conversationsBox!.get(topic);
     if (conversation == null) return;
@@ -165,6 +206,11 @@ class DbService {
   Future<void> saveContact(ContactModel contact) async {
     _ensureInitialized();
     await _contactsBox!.put(contact.address.toLowerCase(), contact);
+  }
+
+  Future<void> deleteContact(String address) async {
+    _ensureInitialized();
+    await _contactsBox!.delete(address.toLowerCase());
   }
 
   ContactModel? getContact(String address) {
@@ -204,9 +250,41 @@ class DbService {
     );
   }
 
+  Future<void> markConversationDeleted(String topic) async {
+    _ensureInitialized();
+    final prefs = _prefs ?? await SharedPreferences.getInstance();
+    final deleted = prefs.getStringList(_deletedConversationKey()) ?? [];
+    if (!deleted.contains(topic)) {
+      await prefs.setStringList(_deletedConversationKey(), [...deleted, topic]);
+    }
+  }
+
+  Future<void> unmarkConversationDeleted(String topic) async {
+    _ensureInitialized();
+    final prefs = _prefs ?? await SharedPreferences.getInstance();
+    final deleted = prefs.getStringList(_deletedConversationKey()) ?? [];
+    if (deleted.contains(topic)) {
+      deleted.remove(topic);
+      await prefs.setStringList(_deletedConversationKey(), deleted);
+    }
+  }
+
+  Future<bool> isConversationDeleted(String topic) async {
+    _ensureInitialized();
+    final prefs = _prefs ?? await SharedPreferences.getInstance();
+    final deleted = prefs.getStringList(_deletedConversationKey()) ?? [];
+    return deleted.contains(topic);
+  }
+
+  String _deletedConversationKey() {
+    return 'deleted_conversations_${_currentWalletAddress!}';
+  }
+
   void _ensureInitialized() {
     if (!isInitialized) {
-      throw Exception('Database not initialized. Call openUserDatabase() first.');
+      throw Exception(
+        'Database not initialized. Call openUserDatabase() first.',
+      );
     }
   }
 }

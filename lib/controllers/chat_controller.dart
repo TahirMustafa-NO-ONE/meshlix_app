@@ -79,13 +79,6 @@ class ChatController extends ChangeNotifier {
 
   Future<ConversationModel?> getOrCreateConversation(String peerAddress) async {
     try {
-      final existing = _conversations.where(
-        (c) => c.peerAddress.toLowerCase() == peerAddress.toLowerCase(),
-      );
-      if (existing.isNotEmpty) {
-        return existing.first;
-      }
-
       final currentWallet = ApiService.instance.walletAddress;
       if (currentWallet == null) {
         throw Exception('No active wallet session');
@@ -95,6 +88,16 @@ class ChatController extends ChangeNotifier {
         peerAddress,
         currentWallet,
       );
+      await _dbService.unmarkConversationDeleted(topic);
+      await loadConversations();
+
+      final existing = _conversations.where(
+        (c) => c.peerAddress.toLowerCase() == peerAddress.toLowerCase(),
+      );
+      if (existing.isNotEmpty) {
+        return existing.first;
+      }
+
       final conversation = ConversationModel(
         topic: topic,
         peerAddress: peerAddress.toLowerCase(),
@@ -131,6 +134,45 @@ class ChatController extends ChangeNotifier {
     }
 
     await loadConversations();
+  }
+
+  Future<void> deleteConversation(ConversationModel conversation) async {
+    if (_currentConversation?.topic == conversation.topic) {
+      _currentConversation = null;
+    }
+
+    _messagesByTopic.remove(conversation.topic);
+    await _dbService.markConversationDeleted(conversation.topic);
+    await _dbService.deleteConversationData(
+      topic: conversation.topic,
+      peerAddress: conversation.peerAddress,
+    );
+    await refresh();
+  }
+
+  Future<void> deleteContact(ContactModel contact) async {
+    final currentWallet = ApiService.instance.walletAddress;
+    if (currentWallet == null) {
+      throw Exception('No active wallet session');
+    }
+
+    final topic = _syncService.generateConversationTopic(
+      contact.address,
+      currentWallet,
+    );
+    await _dbService.markConversationDeleted(topic);
+    _messagesByTopic.remove(topic);
+
+    if (_currentConversation?.topic == topic) {
+      _currentConversation = null;
+    }
+
+    await _dbService.deleteConversationData(
+      topic: topic,
+      peerAddress: contact.address,
+    );
+    await _dbService.deleteContact(contact.address);
+    await refresh();
   }
 
   Future<bool> sendMessage(String content) async {

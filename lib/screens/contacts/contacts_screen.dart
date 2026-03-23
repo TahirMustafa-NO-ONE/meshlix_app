@@ -93,6 +93,47 @@ class _ContactsScreenState extends State<ContactsScreen> {
     }
   }
 
+  Future<void> _confirmDeleteContact(ContactModel contact) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: Text(
+            'Delete contact?',
+            style: GoogleFonts.rajdhani(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Text(
+            'This will remove the contact and any local chat history for this address.',
+            style: GoogleFonts.rajdhani(color: AppColors.textSecondary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    await _chatController.deleteContact(contact);
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Contact deleted from this device')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -207,6 +248,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
           return _ContactTile(
             contact: contact,
             onTap: () => _startChat(contact),
+            onDelete: () => _confirmDeleteContact(contact),
           );
         },
       ),
@@ -218,83 +260,102 @@ class _ContactsScreenState extends State<ContactsScreen> {
 class _ContactTile extends StatelessWidget {
   final ContactModel contact;
   final VoidCallback onTap;
+  final VoidCallback onDelete;
 
-  const _ContactTile({required this.contact, required this.onTap});
+  const _ContactTile({
+    required this.contact,
+    required this.onTap,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(color: AppColors.border, width: 0.5),
+    return Dismissible(
+      key: ValueKey(contact.address),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (_) async {
+        onDelete();
+        return false;
+      },
+      background: Container(
+        color: Colors.red.withValues(alpha: 0.18),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: const Icon(Icons.delete_outline, color: Colors.red),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(color: AppColors.border, width: 0.5),
+            ),
           ),
-        ),
-        child: Row(
-          children: [
-            // Avatar
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.primaryAccent.withValues(alpha: 0.15),
-                border: Border.all(color: AppColors.border, width: 1),
-              ),
-              child: Center(
-                child: Text(
-                  _getAvatarText(contact.address),
-                  style: GoogleFonts.robotoMono(
-                    color: AppColors.primaryAccent,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
+          child: Row(
+            children: [
+              // Avatar
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.primaryAccent.withValues(alpha: 0.15),
+                  border: Border.all(color: AppColors.border, width: 1),
+                ),
+                child: Center(
+                  child: Text(
+                    _getAvatarText(contact.address),
+                    style: GoogleFonts.robotoMono(
+                      color: AppColors.primaryAccent,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 16),
-            // Content
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    contact.displayName ?? _formatAddress(contact.address),
-                    style: GoogleFonts.rajdhani(
-                      color: AppColors.textPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  if (contact.displayName != null)
+              const SizedBox(width: 16),
+              // Content
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      _formatAddress(contact.address),
-                      style: GoogleFonts.robotoMono(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                      ),
-                    ),
-                  if (contact.lastInteractionAt != null)
-                    Text(
-                      'Last chat: ${_formatTime(contact.lastInteractionAt!)}',
+                      contact.displayName ?? _formatAddress(contact.address),
                       style: GoogleFonts.rajdhani(
-                        color: AppColors.textHint,
-                        fontSize: 12,
+                        color: AppColors.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                ],
+                    const SizedBox(height: 2),
+                    if (contact.displayName != null)
+                      Text(
+                        _formatAddress(contact.address),
+                        style: GoogleFonts.robotoMono(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    if (contact.lastInteractionAt != null)
+                      Text(
+                        'Last chat: ${_formatTime(contact.lastInteractionAt!)}',
+                        style: GoogleFonts.rajdhani(
+                          color: AppColors.textHint,
+                          fontSize: 12,
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            // Chat button
-            Icon(
-              Icons.chat_bubble_outline,
-              color: AppColors.primaryAccent,
-              size: 20,
-            ),
-          ],
+              // Chat button
+              Icon(
+                Icons.chat_bubble_outline,
+                color: AppColors.primaryAccent,
+                size: 20,
+              ),
+            ],
+          ),
         ),
       ),
     );

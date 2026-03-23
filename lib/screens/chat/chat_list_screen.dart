@@ -59,6 +59,49 @@ class _ChatListScreenState extends State<ChatListScreen> {
     await _chatController.refresh();
   }
 
+  Future<void> _confirmDeleteConversation(
+    ConversationModel conversation,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: Text(
+            'Delete chat?',
+            style: GoogleFonts.rajdhani(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Text(
+            'This will remove the chat and its local messages from this device.',
+            style: GoogleFonts.rajdhani(color: AppColors.textSecondary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    await _chatController.deleteConversation(conversation);
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Chat deleted from this device')),
+    );
+  }
+
   Future<void> _openContact(ContactModel contact) async {
     final conversation = await _chatController.getOrCreateConversation(
       contact.address,
@@ -256,6 +299,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
             (conversation) => _ConversationTile(
               conversation: conversation,
               onTap: () => _openChat(conversation),
+              onDelete: () => _confirmDeleteConversation(conversation),
             ),
           ),
           ...contactOnlyItems.map(
@@ -274,123 +318,144 @@ class _ChatListScreenState extends State<ChatListScreen> {
 class _ConversationTile extends StatelessWidget {
   final ConversationModel conversation;
   final VoidCallback onTap;
+  final VoidCallback onDelete;
 
-  const _ConversationTile({required this.conversation, required this.onTap});
+  const _ConversationTile({
+    required this.conversation,
+    required this.onTap,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
     final hasUnread = conversation.unreadCount > 0;
 
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(color: AppColors.border, width: 0.5),
-          ),
-        ),
-        child: Row(
-          children: [
-            // Avatar
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.primaryAccent.withValues(alpha: 0.15),
-                border: Border.all(
-                  color: hasUnread ? AppColors.primaryAccent : AppColors.border,
-                  width: hasUnread ? 2 : 1,
-                ),
-              ),
-              child: Center(
-                child: Text(
-                  _getAvatarText(conversation.peerAddress),
-                  style: GoogleFonts.robotoMono(
-                    color: AppColors.primaryAccent,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
+    return Dismissible(
+      key: ValueKey(conversation.topic),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (_) async {
+        onDelete();
+        return false;
+      },
+      background: Container(
+        color: Colors.red.withValues(alpha: 0.18),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: const Icon(Icons.delete_outline, color: Colors.red),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(color: AppColors.border, width: 0.5),
             ),
-            const SizedBox(width: 16),
-            // Content
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _formatAddress(conversation.peerAddress),
-                          style: GoogleFonts.robotoMono(
-                            color: AppColors.textPrimary,
-                            fontSize: 14,
-                            fontWeight: hasUnread
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (conversation.lastMessageAt != null)
-                        Text(
-                          _formatTime(conversation.lastMessageAt!),
-                          style: GoogleFonts.rajdhani(
-                            color: hasUnread
-                                ? AppColors.primaryAccent
-                                : AppColors.textHint,
-                            fontSize: 12,
-                          ),
-                        ),
-                    ],
+          ),
+          child: Row(
+            children: [
+              // Avatar
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.primaryAccent.withValues(alpha: 0.15),
+                  border: Border.all(
+                    color: hasUnread
+                        ? AppColors.primaryAccent
+                        : AppColors.border,
+                    width: hasUnread ? 2 : 1,
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          conversation.lastMessage ?? 'No messages yet',
-                          style: GoogleFonts.rajdhani(
-                            color: hasUnread
-                                ? AppColors.textPrimary
-                                : AppColors.textSecondary,
-                            fontSize: 14,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (hasUnread)
-                        Container(
-                          margin: const EdgeInsets.only(left: 8),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryAccent,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
+                ),
+                child: Center(
+                  child: Text(
+                    _getAvatarText(conversation.peerAddress),
+                    style: GoogleFonts.robotoMono(
+                      color: AppColors.primaryAccent,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              // Content
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
                           child: Text(
-                            '${conversation.unreadCount}',
+                            _formatAddress(conversation.peerAddress),
+                            style: GoogleFonts.robotoMono(
+                              color: AppColors.textPrimary,
+                              fontSize: 14,
+                              fontWeight: hasUnread
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (conversation.lastMessageAt != null)
+                          Text(
+                            _formatTime(conversation.lastMessageAt!),
                             style: GoogleFonts.rajdhani(
-                              color: Colors.black,
+                              color: hasUnread
+                                  ? AppColors.primaryAccent
+                                  : AppColors.textHint,
                               fontSize: 12,
-                              fontWeight: FontWeight.bold,
                             ),
                           ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            conversation.lastMessage ?? 'No messages yet',
+                            style: GoogleFonts.rajdhani(
+                              color: hasUnread
+                                  ? AppColors.textPrimary
+                                  : AppColors.textSecondary,
+                              fontSize: 14,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                    ],
-                  ),
-                ],
+                        if (hasUnread)
+                          Container(
+                            margin: const EdgeInsets.only(left: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryAccent,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '${conversation.unreadCount}',
+                              style: GoogleFonts.rajdhani(
+                                color: Colors.black,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

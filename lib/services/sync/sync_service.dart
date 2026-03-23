@@ -28,6 +28,10 @@ class SyncService {
       final backendConversations = await _apiService.getConversations();
 
       for (final backendConvo in backendConversations) {
+        if (await _dbService.isConversationDeleted(backendConvo.topic)) {
+          continue;
+        }
+
         if (!_dbService.conversationExists(backendConvo.topic)) {
           await _dbService.saveConversation(
             ConversationModel.fromBackend(backendConvo),
@@ -71,7 +75,9 @@ class SyncService {
   void startRealtimeSync() {
     if (_messageSubscription != null) return;
 
-    _messageSubscription = _socketService.messageStream.listen((backendMessage) async {
+    _messageSubscription = _socketService.messageStream.listen((
+      backendMessage,
+    ) async {
       await _handleIncomingMessage(backendMessage);
     });
 
@@ -97,8 +103,13 @@ class SyncService {
       return;
     }
 
-    final topic = backendMessage.conversationTopic ??
+    final topic =
+        backendMessage.conversationTopic ??
         generateConversationTopic(backendMessage.sender, currentWallet);
+    if (await _dbService.isConversationDeleted(topic)) {
+      return;
+    }
+
     final message = MessageModel.fromBackend(backendMessage, topic);
 
     await _dbService.saveMessage(message);
@@ -203,7 +214,9 @@ class SyncService {
     final pendingMessages = _dbService.getPendingMessages();
 
     for (final message in pendingMessages) {
-      final conversation = _dbService.getConversation(message.conversationTopic);
+      final conversation = _dbService.getConversation(
+        message.conversationTopic,
+      );
       if (conversation == null) {
         continue;
       }
