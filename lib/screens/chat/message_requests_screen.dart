@@ -27,23 +27,17 @@ class _MessageRequestsScreenState extends State<MessageRequestsScreen> {
   Future<void> _accept(ConversationModel conversation) async {
     await _chatController.acceptRequest(conversation);
     if (!mounted) return;
-    final refreshed = _chatController.conversations.firstWhere(
-      (item) => item.topic == conversation.topic,
-      orElse: () => conversation,
-    );
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ChatScreen(conversation: refreshed),
-      ),
+      MaterialPageRoute(builder: (_) => ChatScreen(conversation: conversation)),
     );
   }
 
   Future<void> _decline(ConversationModel conversation) async {
     await _chatController.declineRequest(conversation);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Request declined')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Connection dismissed')));
   }
 
   @override
@@ -106,7 +100,7 @@ class _MessageRequestsScreenState extends State<MessageRequestsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Message Requests',
+                  'New Connections',
                   style: GoogleFonts.rajdhani(
                     color: AppColors.textPrimary,
                     fontSize: 22,
@@ -114,7 +108,7 @@ class _MessageRequestsScreenState extends State<MessageRequestsScreen> {
                   ),
                 ),
                 Text(
-                  'Review first-time chats before opening them.',
+                  'New chats stay here until you reply.',
                   style: GoogleFonts.rajdhani(
                     color: AppColors.textSecondary,
                     fontSize: 13,
@@ -137,10 +131,14 @@ class _MessageRequestsScreenState extends State<MessageRequestsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.mark_chat_unread_outlined, color: AppColors.textHint, size: 60),
+          Icon(
+            Icons.mark_chat_unread_outlined,
+            color: AppColors.textHint,
+            size: 60,
+          ),
           const SizedBox(height: 16),
           Text(
-            'No pending requests',
+            'No new connections',
             style: GoogleFonts.rajdhani(
               color: AppColors.textSecondary,
               fontSize: 18,
@@ -149,7 +147,7 @@ class _MessageRequestsScreenState extends State<MessageRequestsScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'New chat requests will appear here.',
+            'First-time incoming chats will appear here.',
             style: GoogleFonts.rajdhani(
               color: AppColors.textHint,
               fontSize: 14,
@@ -180,7 +178,9 @@ class _RequestCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.primaryAccent.withValues(alpha: 0.35)),
+        border: Border.all(
+          color: AppColors.primaryAccent.withValues(alpha: 0.35),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -221,7 +221,7 @@ class _RequestCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       conversation.lastMessageAt == null
-                          ? 'New request'
+                          ? 'New connection'
                           : 'Sent ${_formatTime(conversation.lastMessageAt!)}',
                       style: GoogleFonts.rajdhani(
                         color: AppColors.textHint,
@@ -253,7 +253,7 @@ class _RequestCard extends StatelessWidget {
                     side: BorderSide(color: AppColors.border),
                     foregroundColor: AppColors.textSecondary,
                   ),
-                  child: const Text('Decline'),
+                  child: const Text('Dismiss'),
                 ),
               ),
               const SizedBox(width: 12),
@@ -264,7 +264,7 @@ class _RequestCard extends StatelessWidget {
                     backgroundColor: AppColors.primaryAccent,
                     foregroundColor: Colors.black,
                   ),
-                  child: const Text('Accept'),
+                  child: const Text('Reply'),
                 ),
               ),
             ],

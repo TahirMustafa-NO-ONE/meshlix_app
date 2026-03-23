@@ -60,8 +60,19 @@ class ChatController extends ChangeNotifier {
   }
 
   Future<void> loadConversations() async {
-    _conversations = _dbService.getConversationsByConsent(['allowed']);
-    _requests = _dbService.getConversationsByConsent(['unknown']);
+    final allConversations = _dbService.getAllConversations();
+    final walletAddress = ApiService.instance.walletAddress?.toLowerCase();
+
+    _requests = allConversations
+        .where(
+          (conversation) => _isConnectionRequest(conversation, walletAddress),
+        )
+        .toList();
+    _conversations = allConversations
+        .where(
+          (conversation) => !_isConnectionRequest(conversation, walletAddress),
+        )
+        .toList();
     notifyListeners();
   }
 
@@ -204,6 +215,7 @@ class ChatController extends ChangeNotifier {
       }
 
       _currentConversation!.updateLastMessage(content, message.sentAt);
+      await loadConversations();
       notifyListeners();
       return true;
     } catch (e) {
@@ -273,21 +285,35 @@ class ChatController extends ChangeNotifier {
   int get totalRequestCount => _requests.length;
 
   Future<void> acceptRequest(ConversationModel conversation) async {
-    await _syncService.updateConversationConsent(
-      peerAddress: conversation.peerAddress,
-      consentState: 'allowed',
-    );
-    conversation.consentState = 'allowed';
-    await refresh();
+    await setCurrentConversation(conversation);
   }
 
   Future<void> declineRequest(ConversationModel conversation) async {
-    await _syncService.updateConversationConsent(
-      peerAddress: conversation.peerAddress,
-      consentState: 'denied',
+    await deleteConversation(conversation);
+  }
+
+  bool isConnectionRequest(ConversationModel conversation) {
+    final walletAddress = ApiService.instance.walletAddress?.toLowerCase();
+    return _isConnectionRequest(conversation, walletAddress);
+  }
+
+  bool _isConnectionRequest(
+    ConversationModel conversation,
+    String? walletAddress,
+  ) {
+    if (walletAddress == null) return false;
+
+    final messages = _dbService.getMessagesForConversation(conversation.topic);
+    if (messages.isEmpty) return false;
+
+    final hasOutgoingMessage = messages.any(
+      (message) => message.sender.toLowerCase() == walletAddress,
     );
-    conversation.consentState = 'denied';
-    await refresh();
+    final hasIncomingMessage = messages.any(
+      (message) => message.sender.toLowerCase() != walletAddress,
+    );
+
+    return hasIncomingMessage && !hasOutgoingMessage;
   }
 
   @override

@@ -66,6 +66,9 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       final success = await _chatController.sendMessage(content);
       if (success) {
+        if (mounted) {
+          setState(() {});
+        }
         _scrollToBottom();
       } else {
         if (mounted) {
@@ -132,9 +135,9 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final myAddress = ApiService.instance.walletAddress?.toLowerCase() ?? '';
-    final isRequest =
-        _chatController.currentConversation?.isRequest ??
-        widget.conversation.isRequest;
+    final activeConversation =
+        _chatController.currentConversation ?? widget.conversation;
+    final isRequest = _chatController.isConnectionRequest(activeConversation);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -152,11 +155,11 @@ class _ChatScreenState extends State<ChatScreen> {
               children: [
                 // Header
                 _buildHeader(),
-                if (isRequest) _buildRequestBanner(),
+                if (isRequest) _buildRequestBanner(activeConversation),
                 // Messages
                 Expanded(child: _buildMessageList(myAddress)),
                 // Input
-                isRequest ? const SizedBox.shrink() : _buildMessageInput(),
+                _buildMessageInput(),
               ],
             ),
           ),
@@ -409,7 +412,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _buildRequestBanner() {
+  Widget _buildRequestBanner(ConversationModel conversation) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
@@ -421,7 +424,7 @@ class _ChatScreenState extends State<ChatScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Message request',
+            'New connection',
             style: GoogleFonts.rajdhani(
               color: AppColors.primaryAccent,
               fontSize: 15,
@@ -430,7 +433,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Accept this request to move it into your main chats and reply normally.',
+            'Reply once and this chat will move into your main conversations.',
             style: GoogleFonts.rajdhani(
               color: AppColors.textSecondary,
               fontSize: 13,
@@ -442,28 +445,23 @@ class _ChatScreenState extends State<ChatScreen> {
               Expanded(
                 child: OutlinedButton(
                   onPressed: () async {
-                    await _chatController.declineRequest(widget.conversation);
+                    await _chatController.declineRequest(conversation);
                     if (mounted) {
                       Navigator.of(context).pop();
                     }
                   },
-                  child: const Text('Decline'),
+                  child: const Text('Dismiss'),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton(
-                  onPressed: () async {
-                    await _chatController.acceptRequest(widget.conversation);
-                    if (mounted) {
-                      setState(() {});
-                    }
-                  },
+                  onPressed: () => FocusScope.of(context).unfocus(),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryAccent,
                     foregroundColor: Colors.black,
                   ),
-                  child: const Text('Accept'),
+                  child: const Text('Reply Below'),
                 ),
               ),
             ],
