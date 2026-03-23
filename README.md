@@ -1,5 +1,7 @@
 # Meshlix Flutter App
 
+![Meshlix Logo](assets/logo.png)
+
 Meshlix is a Flutter-based decentralized chat client for XMTP. The app uses Web3Auth for onboarding, stores wallet-sensitive data locally on-device, syncs conversations through a lightweight Node.js backend bridge, and keeps chat state available with an offline-first local database.
 
 ## Overview
