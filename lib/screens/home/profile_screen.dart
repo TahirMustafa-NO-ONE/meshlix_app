@@ -81,7 +81,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.logout_rounded, color: AppColors.error),
+                    icon: const Icon(
+                      Icons.logout_rounded,
+                      color: AppColors.error,
+                    ),
                     onPressed: () => _handleSignOut(context),
                   ),
                 ],
@@ -105,7 +108,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       icon: const Icon(Icons.copy_rounded),
                       color: AppColors.primaryAccent,
                       onPressed: () {
-                        Clipboard.setData(ClipboardData(text: user.publicAddress));
+                        Clipboard.setData(
+                          ClipboardData(text: user.publicAddress),
+                        );
                       },
                     ),
                   ],
@@ -215,7 +220,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _handleSignOut(BuildContext context) async {
-    await AppInitService.instance.dispose();
+    await AppInitService.instance.shutdown();
     await AuthService.instance.signOut();
 
     if (!context.mounted) return;

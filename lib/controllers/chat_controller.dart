@@ -5,6 +5,8 @@ import '../db/models/contact_model.dart';
 import '../db/models/conversation_model.dart';
 import '../db/models/message_model.dart';
 import '../services/api/api_service.dart';
+import '../services/app_init_service.dart';
+import '../services/auth/auth_service.dart';
 import '../services/socket/socket_service.dart';
 import '../services/sync/sync_service.dart';
 
@@ -47,6 +49,7 @@ class ChatController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      await AppInitService.instance.ensureBackendReady();
       await loadConversations();
       await loadContacts();
       _startListeningToMessages();
@@ -61,7 +64,7 @@ class ChatController extends ChangeNotifier {
 
   Future<void> loadConversations() async {
     final allConversations = _dbService.getAllConversations();
-    final walletAddress = ApiService.instance.walletAddress?.toLowerCase();
+    final walletAddress = _activeWalletAddress?.toLowerCase();
 
     _requests = allConversations
         .where(
@@ -90,7 +93,7 @@ class ChatController extends ChangeNotifier {
 
   Future<ConversationModel?> getOrCreateConversation(String peerAddress) async {
     try {
-      final currentWallet = ApiService.instance.walletAddress;
+      final currentWallet = _activeWalletAddress;
       if (currentWallet == null) {
         throw Exception('No active wallet session');
       }
@@ -162,7 +165,7 @@ class ChatController extends ChangeNotifier {
   }
 
   Future<void> deleteContact(ContactModel contact) async {
-    final currentWallet = ApiService.instance.walletAddress;
+    final currentWallet = _activeWalletAddress;
     if (currentWallet == null) {
       throw Exception('No active wallet session');
     }
@@ -265,6 +268,7 @@ class ChatController extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
+    await AppInitService.instance.ensureBackendReady();
     await loadConversations();
     await loadContacts();
     if (_currentConversation != null) {
@@ -275,7 +279,7 @@ class ChatController extends ChangeNotifier {
   }
 
   Future<bool> canMessage(String address) {
-    return ApiService.instance.canMessage(address);
+    return _canMessageInternal(address);
   }
 
   int get totalUnreadCount {
@@ -293,8 +297,23 @@ class ChatController extends ChangeNotifier {
   }
 
   bool isConnectionRequest(ConversationModel conversation) {
-    final walletAddress = ApiService.instance.walletAddress?.toLowerCase();
+    final walletAddress = _activeWalletAddress?.toLowerCase();
     return _isConnectionRequest(conversation, walletAddress);
+  }
+
+  String? get _activeWalletAddress =>
+      AppInitService.instance.currentWalletAddress ??
+      ApiService.instance.walletAddress ??
+      AuthService.instance.currentUser?.publicAddress;
+
+  Future<bool> _canMessageInternal(String address) async {
+    final ready = await AppInitService.instance.ensureBackendReady(
+      runFullSync: false,
+    );
+    if (!ready) {
+      return false;
+    }
+    return ApiService.instance.canMessage(address);
   }
 
   bool _isConnectionRequest(

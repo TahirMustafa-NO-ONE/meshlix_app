@@ -57,7 +57,8 @@ class _SplashScreenState extends State<SplashScreen> {
 
           // Initialize services for the authenticated user
           _updateStatus('Initializing services...');
-          final initialized = await AppInitService.instance.initializeFromSession();
+          final initialized = await AppInitService.instance
+              .initializeFromSession();
 
           if (!mounted) return;
 

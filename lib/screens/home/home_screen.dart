@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/auth/auth_service.dart';
+import '../../services/app_init_service.dart';
 import '../../controllers/chat_controller.dart';
 import '../../theme/app_colors.dart';
 import '../auth/auth_screen.dart';
@@ -17,12 +18,26 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _walletAddressController =
       TextEditingController();
   final _chatController = ChatController.instance;
+  final _appInitService = AppInitService.instance;
   bool _isSendingRequest = false;
 
   @override
+  void initState() {
+    super.initState();
+    _appInitService.addListener(_onStatusChanged);
+  }
+
+  @override
   void dispose() {
+    _appInitService.removeListener(_onStatusChanged);
     _walletAddressController.dispose();
     super.dispose();
+  }
+
+  void _onStatusChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _handleSendChatRequest() async {
@@ -46,21 +61,32 @@ class _HomeScreenState extends State<HomeScreen> {
 
     setState(() => _isSendingRequest = true);
     try {
-      // Check if the address can receive XMTP messages
-      final canMessage = await _chatController.canMessage(address);
-      if (!canMessage) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('$address is not on XMTP network yet'),
-              backgroundColor: Colors.orange,
-            ),
-          );
+      final backendReady = await _appInitService.ensureBackendReady(
+        runFullSync: false,
+      );
+      if (backendReady) {
+        final canMessage = await _chatController.canMessage(address);
+        if (!canMessage) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('$address is not on XMTP network yet'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          return;
         }
-        return;
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Offline mode: conversation created locally. Delivery will resume when the backend reconnects.',
+            ),
+          ),
+        );
       }
 
-      // Create or get conversation
       final conversation = await _chatController.getOrCreateConversation(
         address,
       );
@@ -123,6 +149,10 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (_appInitService.isOfflineMode) ...[
+                    _buildOfflineBanner(),
+                    const SizedBox(height: 20),
+                  ],
                   // ── Header ──────────────────────────────────────────
                   // ── Header ──────────────────────────────────────────
                   Container(
@@ -382,6 +412,28 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildOfflineBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceVariant,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.primaryAccent.withValues(alpha: 0.4),
+        ),
+      ),
+      child: Text(
+        'Offline mode is active. Local chats stay available and queued messages will sync when the backend reconnects.',
+        style: GoogleFonts.rajdhani(
+          color: AppColors.textPrimary,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

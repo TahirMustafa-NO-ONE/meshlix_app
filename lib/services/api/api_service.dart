@@ -8,6 +8,7 @@ import '../storage/private_key_storage.dart';
 class ApiService {
   ApiService._();
   static final ApiService instance = ApiService._();
+  static const Duration _requestTimeout = Duration(seconds: 10);
 
   String? _walletAddress;
   String? _sessionToken;
@@ -18,14 +19,16 @@ class ApiService {
   }) async {
     _walletAddress = walletAddress;
 
-    final response = await http.post(
-      Uri.parse('${BackendConfig.httpBaseUrl}/session/init'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'walletAddress': walletAddress,
-        'privateKey': privateKey,
-      }),
-    );
+    final response = await http
+        .post(
+          Uri.parse('${BackendConfig.httpBaseUrl}/session/init'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'walletAddress': walletAddress,
+            'privateKey': privateKey,
+          }),
+        )
+        .timeout(_requestTimeout);
 
     if (response.statusCode != 200) {
       throw Exception('Failed to initialize backend session: ${response.body}');
@@ -43,25 +46,29 @@ class ApiService {
   }) async {
     _ensureInitialized();
 
-    var response = await http.post(
-      Uri.parse('${BackendConfig.httpBaseUrl}/send-message'),
-      headers: _headers(),
-      body: jsonEncode({
-        'recipientAddress': recipientAddress,
-        'message': message,
-      }),
-    );
+    var response = await http
+        .post(
+          Uri.parse('${BackendConfig.httpBaseUrl}/send-message'),
+          headers: _headers(),
+          body: jsonEncode({
+            'recipientAddress': recipientAddress,
+            'message': message,
+          }),
+        )
+        .timeout(_requestTimeout);
 
     if (response.statusCode == 401) {
       await _reinitializeSession();
-      response = await http.post(
-        Uri.parse('${BackendConfig.httpBaseUrl}/send-message'),
-        headers: _headers(),
-        body: jsonEncode({
-          'recipientAddress': recipientAddress,
-          'message': message,
-        }),
-      );
+      response = await http
+          .post(
+            Uri.parse('${BackendConfig.httpBaseUrl}/send-message'),
+            headers: _headers(),
+            body: jsonEncode({
+              'recipientAddress': recipientAddress,
+              'message': message,
+            }),
+          )
+          .timeout(_requestTimeout);
     }
 
     if (response.statusCode != 200) {
@@ -83,13 +90,18 @@ class ApiService {
       queryParameters['since'] = since.toIso8601String();
     }
 
-    final uri = Uri.parse('${BackendConfig.httpBaseUrl}/messages')
-        .replace(queryParameters: queryParameters);
-    var response = await http.get(uri, headers: _headers(includeJson: false));
+    final uri = Uri.parse(
+      '${BackendConfig.httpBaseUrl}/messages',
+    ).replace(queryParameters: queryParameters);
+    var response = await http
+        .get(uri, headers: _headers(includeJson: false))
+        .timeout(_requestTimeout);
 
     if (response.statusCode == 401) {
       await _reinitializeSession();
-      response = await http.get(uri, headers: _headers(includeJson: false));
+      response = await http
+          .get(uri, headers: _headers(includeJson: false))
+          .timeout(_requestTimeout);
     }
 
     if (response.statusCode != 200) {
@@ -106,17 +118,21 @@ class ApiService {
   Future<List<BackendConversation>> getConversations() async {
     _ensureInitialized();
 
-    var response = await http.get(
-      Uri.parse('${BackendConfig.httpBaseUrl}/conversations'),
-      headers: _headers(includeJson: false),
-    );
+    var response = await http
+        .get(
+          Uri.parse('${BackendConfig.httpBaseUrl}/conversations'),
+          headers: _headers(includeJson: false),
+        )
+        .timeout(_requestTimeout);
 
     if (response.statusCode == 401) {
       await _reinitializeSession();
-      response = await http.get(
-        Uri.parse('${BackendConfig.httpBaseUrl}/conversations'),
-        headers: _headers(includeJson: false),
-      );
+      response = await http
+          .get(
+            Uri.parse('${BackendConfig.httpBaseUrl}/conversations'),
+            headers: _headers(includeJson: false),
+          )
+          .timeout(_requestTimeout);
     }
 
     if (response.statusCode != 200) {
@@ -138,29 +154,35 @@ class ApiService {
   }) async {
     _ensureInitialized();
 
-    var response = await http.post(
-      Uri.parse('${BackendConfig.httpBaseUrl}/conversations/consent'),
-      headers: _headers(),
-      body: jsonEncode({
-        'peerAddress': peerAddress,
-        'consentState': consentState,
-      }),
-    );
+    var response = await http
+        .post(
+          Uri.parse('${BackendConfig.httpBaseUrl}/conversations/consent'),
+          headers: _headers(),
+          body: jsonEncode({
+            'peerAddress': peerAddress,
+            'consentState': consentState,
+          }),
+        )
+        .timeout(_requestTimeout);
 
     if (response.statusCode == 401) {
       await _reinitializeSession();
-      response = await http.post(
-        Uri.parse('${BackendConfig.httpBaseUrl}/conversations/consent'),
-        headers: _headers(),
-        body: jsonEncode({
-          'peerAddress': peerAddress,
-          'consentState': consentState,
-        }),
-      );
+      response = await http
+          .post(
+            Uri.parse('${BackendConfig.httpBaseUrl}/conversations/consent'),
+            headers: _headers(),
+            body: jsonEncode({
+              'peerAddress': peerAddress,
+              'consentState': consentState,
+            }),
+          )
+          .timeout(_requestTimeout);
     }
 
     if (response.statusCode != 200) {
-      throw Exception('Failed to update conversation consent: ${response.body}');
+      throw Exception(
+        'Failed to update conversation consent: ${response.body}',
+      );
     }
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -172,14 +194,18 @@ class ApiService {
   Future<bool> canMessage(String targetAddress) async {
     _ensureInitialized();
 
-    final uri = Uri.parse('${BackendConfig.httpBaseUrl}/can-message').replace(
-      queryParameters: {'targetAddress': targetAddress},
-    );
+    final uri = Uri.parse(
+      '${BackendConfig.httpBaseUrl}/can-message',
+    ).replace(queryParameters: {'targetAddress': targetAddress});
 
-    var response = await http.get(uri, headers: _headers(includeJson: false));
+    var response = await http
+        .get(uri, headers: _headers(includeJson: false))
+        .timeout(_requestTimeout);
     if (response.statusCode == 401) {
       await _reinitializeSession();
-      response = await http.get(uri, headers: _headers(includeJson: false));
+      response = await http
+          .get(uri, headers: _headers(includeJson: false))
+          .timeout(_requestTimeout);
     }
     if (response.statusCode != 200) {
       return false;
@@ -191,9 +217,9 @@ class ApiService {
 
   Future<bool> checkHealth() async {
     try {
-      final response = await http.get(
-        Uri.parse('${BackendConfig.httpBaseUrl}/health'),
-      );
+      final response = await http
+          .get(Uri.parse('${BackendConfig.httpBaseUrl}/health'))
+          .timeout(_requestTimeout);
       return response.statusCode == 200;
     } catch (_) {
       return false;
@@ -204,10 +230,12 @@ class ApiService {
     final token = _sessionToken;
     try {
       if (token != null) {
-        await http.post(
-          Uri.parse('${BackendConfig.httpBaseUrl}/session/disconnect'),
-          headers: _headers(),
-        );
+        await http
+            .post(
+              Uri.parse('${BackendConfig.httpBaseUrl}/session/disconnect'),
+              headers: _headers(),
+            )
+            .timeout(_requestTimeout);
       }
     } catch (e) {
       debugPrint('[ApiService] Disconnect error: $e');
@@ -219,9 +247,7 @@ class ApiService {
   }
 
   Map<String, String> _headers({bool includeJson = true}) {
-    final headers = <String, String>{
-      'Authorization': 'Bearer $_sessionToken',
-    };
+    final headers = <String, String>{'Authorization': 'Bearer $_sessionToken'};
     if (includeJson) {
       headers['Content-Type'] = 'application/json';
     }
@@ -237,10 +263,14 @@ class ApiService {
   Future<void> _reinitializeSession() async {
     final walletAddress = _walletAddress;
     if (walletAddress == null) {
-      throw Exception('Cannot reinitialize backend session without wallet address.');
+      throw Exception(
+        'Cannot reinitialize backend session without wallet address.',
+      );
     }
 
-    final privateKey = await PrivateKeyStorage.instance.loadPrivateKey(walletAddress);
+    final privateKey = await PrivateKeyStorage.instance.loadPrivateKey(
+      walletAddress,
+    );
     if (privateKey == null || privateKey.isEmpty) {
       throw Exception('No private key found for wallet: $walletAddress');
     }
@@ -311,7 +341,9 @@ class BackendConversation {
       createdAt: DateTime.parse(json['createdAt'] as String),
       lastMessage: json['lastMessage'] == null
           ? null
-          : BackendMessage.fromJson(json['lastMessage'] as Map<String, dynamic>),
+          : BackendMessage.fromJson(
+              json['lastMessage'] as Map<String, dynamic>,
+            ),
       consentState: json['consentState'] as String? ?? 'allowed',
     );
   }

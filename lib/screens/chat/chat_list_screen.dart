@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../controllers/chat_controller.dart';
 import '../../db/models/contact_model.dart';
 import '../../db/models/conversation_model.dart';
+import '../../services/app_init_service.dart';
 import '../../theme/app_colors.dart';
 import 'chat_screen.dart';
 import 'message_requests_screen.dart';
@@ -20,17 +21,20 @@ class ChatListScreen extends StatefulWidget {
 
 class _ChatListScreenState extends State<ChatListScreen> {
   final _chatController = ChatController.instance;
+  final _appInitService = AppInitService.instance;
   bool _isRefreshing = false;
 
   @override
   void initState() {
     super.initState();
+    _appInitService.addListener(_onChatUpdate);
     _chatController.addListener(_onChatUpdate);
     _initializeController();
   }
 
   @override
   void dispose() {
+    _appInitService.removeListener(_onChatUpdate);
     _chatController.removeListener(_onChatUpdate);
     super.dispose();
   }
@@ -132,6 +136,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
               children: [
                 // Header
                 _buildHeader(),
+                if (_appInitService.isOfflineMode) _buildOfflineBanner(),
                 // Conversation list
                 Expanded(child: _buildConversationList()),
               ],
@@ -207,6 +212,22 @@ class _ChatListScreenState extends State<ChatListScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildOfflineBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 14),
+      color: AppColors.surfaceVariant,
+      child: Text(
+        'Offline mode is active. Local conversations are available and sync will resume automatically.',
+        style: GoogleFonts.rajdhani(
+          color: AppColors.textPrimary,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

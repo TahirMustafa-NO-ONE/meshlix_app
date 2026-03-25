@@ -9,6 +9,7 @@ import '../session/session_manager.dart';
 class SocketService {
   SocketService._();
   static final SocketService instance = SocketService._();
+  static const Duration _connectTimeout = Duration(seconds: 8);
 
   WebSocketChannel? _channel;
   StreamSubscription? _subscription;
@@ -45,6 +46,7 @@ class SocketService {
 
     try {
       _channel = WebSocketChannel.connect(Uri.parse(BackendConfig.wsBaseUrl));
+      await _channel!.ready.timeout(_connectTimeout);
       _subscription = _channel!.stream.listen(
         _handleMessage,
         onError: _handleError,

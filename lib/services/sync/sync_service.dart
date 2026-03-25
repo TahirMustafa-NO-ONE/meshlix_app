@@ -4,6 +4,8 @@ import '../../db/db_service.dart';
 import '../../db/models/conversation_model.dart';
 import '../../db/models/message_model.dart';
 import '../api/api_service.dart';
+import '../app_init_service.dart';
+import '../auth/auth_service.dart';
 import '../socket/socket_service.dart';
 
 class SyncService {
@@ -152,7 +154,10 @@ class SyncService {
     required String recipientAddress,
     required String messageContent,
   }) async {
-    final walletAddress = _apiService.walletAddress;
+    final walletAddress =
+        AppInitService.instance.currentWalletAddress ??
+        _apiService.walletAddress ??
+        AuthService.instance.currentUser?.publicAddress;
     if (walletAddress == null) {
       throw Exception('No active wallet session');
     }
@@ -190,6 +195,13 @@ class SyncService {
     await _dbService.upsertContact(recipientAddress);
 
     try {
+      final backendReady = await AppInitService.instance.ensureBackendReady(
+        runFullSync: false,
+      );
+      if (!backendReady) {
+        return localMessage;
+      }
+
       final sentMessage = await _apiService.sendMessage(
         recipientAddress: recipientAddress,
         message: messageContent,
@@ -205,12 +217,21 @@ class SyncService {
       localMessage.status = sentMessage.status ?? 'sent';
       return localMessage;
     } catch (e) {
-      await _dbService.updateMessageStatus(temporaryId, false, 'failed');
-      rethrow;
+      debugPrint('[SyncService] Message queued for retry: $e');
+      await _dbService.updateMessageStatus(temporaryId, false, 'pending');
+      localMessage.status = 'pending';
+      return localMessage;
     }
   }
 
   Future<void> retryPendingMessages() async {
+    final backendReady = await AppInitService.instance.ensureBackendReady(
+      runFullSync: false,
+    );
+    if (!backendReady) {
+      return;
+    }
+
     final pendingMessages = _dbService.getPendingMessages();
 
     for (final message in pendingMessages) {
@@ -234,7 +255,7 @@ class SyncService {
         );
       } catch (e) {
         debugPrint('[SyncService] Retry failed for ${message.id}: $e');
-        await _dbService.updateMessageStatus(message.id, false, 'failed');
+        await _dbService.updateMessageStatus(message.id, false, 'pending');
       }
     }
   }

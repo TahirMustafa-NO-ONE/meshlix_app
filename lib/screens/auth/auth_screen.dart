@@ -198,15 +198,17 @@ class _AuthScreenState extends State<AuthScreen> with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('[AuthScreen] Service initialization failed: $e');
 
-      // Show error to user
       if (mounted) {
         _showSnack(
-          'Failed to initialize XMTP: ${e.toString()}\n\n'
-          'Please check your internet connection and try again.',
+          'Local session is ready, but backend sync is unavailable right now. '
+          'You can continue offline and the app will retry automatically.',
         );
+      }
 
-        // Log out the user since services failed
-        await AuthService.instance.signOut();
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+        );
       }
     }
   }

@@ -4,6 +4,8 @@ import '../../controllers/chat_controller.dart';
 import '../../db/models/conversation_model.dart';
 import '../../db/models/message_model.dart';
 import '../../services/api/api_service.dart';
+import '../../services/app_init_service.dart';
+import '../../services/auth/auth_service.dart';
 import '../../theme/app_colors.dart';
 
 /// Chat Screen
@@ -20,6 +22,7 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final _chatController = ChatController.instance;
+  final _appInitService = AppInitService.instance;
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
   bool _isSending = false;
@@ -27,6 +30,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    _appInitService.addListener(_onStatusChanged);
     _initializeChat();
   }
 
@@ -38,10 +42,17 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    _appInitService.removeListener(_onStatusChanged);
     _messageController.dispose();
     _scrollController.dispose();
     _chatController.clearCurrentConversation();
     super.dispose();
+  }
+
+  void _onStatusChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _scrollToBottom() {
@@ -134,7 +145,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final myAddress = ApiService.instance.walletAddress?.toLowerCase() ?? '';
+    final myAddress =
+        AppInitService.instance.currentWalletAddress?.toLowerCase() ??
+        ApiService.instance.walletAddress?.toLowerCase() ??
+        AuthService.instance.currentUser?.publicAddress.toLowerCase() ??
+        '';
     final activeConversation =
         _chatController.currentConversation ?? widget.conversation;
     final isRequest = _chatController.isConnectionRequest(activeConversation);
@@ -155,6 +170,7 @@ class _ChatScreenState extends State<ChatScreen> {
               children: [
                 // Header
                 _buildHeader(),
+                if (_appInitService.isOfflineMode) _buildOfflineBanner(),
                 if (isRequest) _buildRequestBanner(activeConversation),
                 // Messages
                 Expanded(child: _buildMessageList(myAddress)),
@@ -229,9 +245,7 @@ class _ChatScreenState extends State<ChatScreen> {
           IconButton(
             icon: Icon(Icons.refresh, color: AppColors.textSecondary),
             onPressed: () async {
-              await _chatController.loadMessagesForConversation(
-                widget.conversation.topic,
-              );
+              await _chatController.refresh();
               setState(() {});
               _scrollToBottom();
             },
@@ -408,6 +422,22 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildOfflineBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      color: AppColors.surfaceVariant,
+      child: Text(
+        'Offline mode: messages will stay queued locally until the backend reconnects.',
+        style: GoogleFonts.rajdhani(
+          color: AppColors.textPrimary,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
