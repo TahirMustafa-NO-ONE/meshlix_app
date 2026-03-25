@@ -149,10 +149,6 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (_appInitService.isOfflineMode) ...[
-                    _buildOfflineBanner(),
-                    const SizedBox(height: 20),
-                  ],
                   // ── Header ──────────────────────────────────────────
                   // ── Header ──────────────────────────────────────────
                   Container(
@@ -193,6 +189,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ],
                         ),
+                        if (_appInitService.isOfflineMode) _buildOfflineBadge(),
                       ],
                     ),
                   ),
@@ -416,24 +413,35 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildOfflineBanner() {
+  Widget _buildOfflineBadge() {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: AppColors.surfaceVariant,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(999),
         border: Border.all(
           color: AppColors.primaryAccent.withValues(alpha: 0.4),
         ),
       ),
-      child: Text(
-        'Offline mode is active. Local chats stay available and queued messages will sync when the backend reconnects.',
-        style: GoogleFonts.rajdhani(
-          color: AppColors.textPrimary,
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.cloud_off_rounded,
+            size: 14,
+            color: AppColors.primaryAccent,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            'Offline',
+            style: GoogleFonts.rajdhani(
+              color: AppColors.textPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ],
       ),
     );
   }
